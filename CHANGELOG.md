@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0a4 - 2026-09-13
+
 - Correct the combined GitHub wheel example to request the CPU runtime extra explicitly.
 - Bind vision enrichment to the base artifact digest and give each adapter its own
   verified temporary image copy.
@@ -10,6 +12,8 @@
 - Derive unsanitized vision MIME types and temporary suffixes from image bytes rather
   than filenames; clarify the opt-in remote-upload privacy boundary.
 - Add neutral threshold-profile aliases while retaining historical profile names.
+- Use `medium-threshold-v1` for new CLI and folder runs by default; keep legacy
+  names and their decision boundaries unchanged.
 - Add a manual release-evidence manifest and checklist; GitHub Actions remain disabled.
 
 ## 0.1.0a3 - 2026-09-13

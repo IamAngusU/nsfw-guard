@@ -19,7 +19,7 @@ without coupling the caller to Python or ONNX Runtime.
     "sha256": "optional-lowercase-or-uppercase-sha256"
   },
   "policy": {
-    "profile": "balanced-v1"
+    "profile": "medium-threshold-v1"
   }
 }
 ```

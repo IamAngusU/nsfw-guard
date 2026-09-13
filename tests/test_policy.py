@@ -1,7 +1,12 @@
+from pathlib import Path
+
 import pytest
 
+from nsfw_guard.cli import build_parser as build_cli_parser
 from nsfw_guard.contracts import Verdict
 from nsfw_guard.errors import InvalidInputError
+from nsfw_guard.folder_scan import FolderScanConfig
+from nsfw_guard.folder_scan import build_parser as build_folder_parser
 from nsfw_guard.policy import PolicyConfig, evaluate_score, get_policy
 
 
@@ -40,3 +45,14 @@ def test_neutral_policy_names_preserve_legacy_thresholds(neutral: str, legacy: s
     )
     assert current.name == neutral
     assert previous.name == legacy
+
+
+def test_new_runs_default_to_neutral_policy_without_changing_legacy_choice() -> None:
+    assert FolderScanConfig(root=Path(".")).policy_name == "medium-threshold-v1"
+    assert build_folder_parser().parse_args(["."]).policy == "medium-threshold-v1"
+    assert build_cli_parser().parse_args(["scan", "image.png"]).policy == "medium-threshold-v1"
+    assert build_cli_parser().parse_args(["bridge"]).policy == "medium-threshold-v1"
+    assert build_cli_parser().parse_args(["benchmark"]).policy == "medium-threshold-v1"
+    assert build_folder_parser().parse_args([".", "--policy", "balanced-v1"]).policy == (
+        "balanced-v1"
+    )

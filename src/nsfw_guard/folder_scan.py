@@ -44,7 +44,7 @@ class FolderScanConfig:
     output_dir: Path | None = None
     recursive: bool = True
     create_links: bool = False
-    policy_name: str = "balanced-v1"
+    policy_name: str = "medium-threshold-v1"
     provider: str = "cpu"
     threads: int = 0
     cuda_arena_limit_mib: int | None = None
@@ -888,9 +888,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--no-recursive", action="store_true")
     parser.add_argument(
-        "--links", action="store_true", help="Create BLOCK/REVIEW/ERROR .url folders."
+        "--links",
+        action="store_true",
+        help="Create portable HTML review indexes and Windows .url shortcuts.",
     )
-    parser.add_argument("--policy", choices=POLICY_NAMES, default="balanced-v1")
+    parser.add_argument("--policy", choices=POLICY_NAMES, default="medium-threshold-v1")
     parser.add_argument("--provider", choices=PROVIDER_NAMES, default="cpu")
     parser.add_argument(
         "--threads",

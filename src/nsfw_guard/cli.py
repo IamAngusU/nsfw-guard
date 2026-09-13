@@ -29,8 +29,8 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--policy",
         choices=sorted(POLICY_PROFILES),
-        default="balanced-v1",
-        help="Decision policy profile (default: balanced-v1).",
+        default="medium-threshold-v1",
+        help="Decision policy profile (default: medium-threshold-v1).",
     )
     parser.add_argument("--provider", choices=("cpu", "cuda", "directml"), default="cpu")
     parser.add_argument(

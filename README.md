@@ -67,7 +67,7 @@ are `Install.cmd`, `Install-DirectML.cmd`, and `Scan-Folder.cmd`.
 
 ```powershell
 py -m venv .venv
-.venv\Scripts\python.exe -m pip install "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a3/nsfw_guard-0.1.0a3-py3-none-any.whl"
+.venv\Scripts\python.exe -m pip install "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl"
 .venv\Scripts\nsfw-guard.exe model install
 .venv\Scripts\nsfw-guard.exe folder "C:\Pictures" --provider cpu --links
 ```
@@ -247,7 +247,7 @@ retain their own licenses; see [`NOTICE.md`](NOTICE.md).
 without an adapter package:
 
 ```powershell
-python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a3/nsfw_guard-0.1.0a3-py3-none-any.whl"
+python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl"
 polymorph guard --doctor
 polymorph guard C:\images\sample.jpg
 ```
