@@ -39,56 +39,22 @@ vollautomatische rechtliche, berufliche oder behoerdliche Entscheidungen.
 
 ## Ohne Klonen ausprobieren (Windows PowerShell)
 
-Mit installiertem Python 3.10+ den ganzen Block in PowerShell oder Windows Terminal
-kopieren. Danach einen Bild- oder Ordnerpfad eingeben. Die CPU-Version richtet sich
-beim ersten Mal isoliert ein und prueft lokal. Fuer sofortiges Entfernen danach
-`-Cleanup` an die letzte Zeile anhaengen: `Invoke-NsfwGuardTrial -Cleanup`.
-Ein Ordner-Test scannt hoechstens 32 Bilder; Berichte bleiben sonst unter
-`%USERPROFILE%\.cache\nsfw-guard\quick-try-v0.1.0a4\results`, nicht im Bildordner.
+Mit installiertem Python 3.10+ diese eine Zeile in PowerShell oder Windows Terminal
+kopieren. Sie laedt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/064df01ee36bc46594559991f4b4b908c2048817/scripts/try.ps1)
+und fragt danach nach einem Bild- oder Ordnerpfad. Klonen und Adminrechte sind
+nicht noetig.
 
 ```powershell
-function Invoke-NsfwGuardTrial {
-  param([switch]$Cleanup)
-  $target = (Read-Host 'Image or folder path / Bild- oder Ordnerpfad').Trim().Trim('"')
-  if (-not (Test-Path -LiteralPath $target)) { throw "Path not found: $target" }
-  $userHome = [IO.Path]::GetFullPath([Environment]::GetFolderPath('UserProfile')).TrimEnd('\')
-  $root = [IO.Path]::GetFullPath((Join-Path $userHome '.cache\nsfw-guard\quick-try-v0.1.0a4'))
-  if (-not $root.StartsWith("$userHome\", [StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe trial cache path.' }
-  $venv = Join-Path $root 'venv'
-  $python = Join-Path $venv 'Scripts\python.exe'
-  $guard = Join-Path $venv 'Scripts\nsfw-guard.exe'
-  $model = Join-Path $root 'model.onnx'
-  try {
-    if (-not (Test-Path -LiteralPath $python)) {
-      python -m venv $venv
-      if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $python)) { throw 'Python 3.10+ is required.' }
-    }
-    if (-not (Test-Path -LiteralPath $guard)) {
-      & $python -m pip install --no-cache-dir --disable-pip-version-check 'nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl'
-      if ($LASTEXITCODE -ne 0) { throw 'NSFW Guard installation failed.' }
-    }
-    if (Test-Path -LiteralPath $target -PathType Container) {
-      & $guard folder $target --provider cpu --model-path $model --max-files 32 --output-dir (Join-Path $root 'results') --links
-    } elseif (Test-Path -LiteralPath $target -PathType Leaf) {
-      & $guard scan $target --provider cpu --model-path $model
-    } else { throw "Neither a file nor a folder: $target" }
-  } finally {
-    if ($Cleanup -and (Test-Path -LiteralPath $root)) {
-      $cache = Get-Item -LiteralPath $root -Force
-      if (($cache.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Refusing to remove a linked cache.' }
-      Remove-Item -LiteralPath $root -Recurse -Force
-      Write-Host "Removed trial cache: $root"
-    }
-  }
-}
-Invoke-NsfwGuardTrial
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/064df01ee36bc46594559991f4b4b908c2048817/scripts/try.ps1')))
 ```
 
-Man muss nichts manuell klonen oder herunterladen. Auf einem neuen Rechner werden
-Paket, Abhaengigkeiten und das festgelegte Modell beim ersten Lauf automatisch
-geladen; dafuer ist Internet noetig. `-Cleanup` entfernt nur den privaten
-Test-Cache, nicht Python, andere Installationen oder Quellbilder. Bilder werden
-nicht hochgeladen. Der vollstaendige Ordner-Scan steht weiter unten.
+Fuer sofortiges Entfernen der privaten Test-Installation samt Modell und Berichten
+`-Cleanup` an die Zeile anhaengen. Falls weder Benutzer-Cache noch Dokumente
+beschreibbar sind, `-CacheBase 'D:\ein-beschreibbarer-ordner'` anhaengen. Das Skript
+prueft Leserechte und verlangt keine Adminrechte. Ein Ordner-Test scannt maximal
+32 Bilder; der vollstaendige Ordner-Scan steht weiter unten. Paket, Abhaengigkeiten
+und Modell werden beim ersten Mal automatisch geladen; Bilder werden nicht
+hochgeladen.
 
 ## In zwei Befehlen starten
 

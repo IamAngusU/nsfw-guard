@@ -46,57 +46,20 @@ legal, employment, moderation, or law-enforcement decisions.
 
 ## Try it without cloning (Windows PowerShell)
 
-With Python 3.10+ installed, paste this entire block into PowerShell or Windows
-Terminal. It asks for one image or folder path, sets up an isolated CPU environment
-on first use, and runs locally. Add `-Cleanup` to the last line
-(`Invoke-NsfwGuardTrial -Cleanup`) to remove this trial's environment, model, and
-reports immediately after the test. A folder trial scans at most 32 images; its
-reports otherwise stay under `%USERPROFILE%\.cache\nsfw-guard\quick-try-v0.1.0a4\results`,
-not in the image folder.
+With Python 3.10+ installed, paste this one line into PowerShell or Windows
+Terminal. It fetches the [bootstrap script pinned to a specific commit](https://github.com/IamAngusU/nsfw-guard/blob/064df01ee36bc46594559991f4b4b908c2048817/scripts/try.ps1)
+and asks for an image or folder path. No clone or administrator rights are needed.
 
 ```powershell
-function Invoke-NsfwGuardTrial {
-  param([switch]$Cleanup)
-  $target = (Read-Host 'Image or folder path / Bild- oder Ordnerpfad').Trim().Trim('"')
-  if (-not (Test-Path -LiteralPath $target)) { throw "Path not found: $target" }
-  $userHome = [IO.Path]::GetFullPath([Environment]::GetFolderPath('UserProfile')).TrimEnd('\')
-  $root = [IO.Path]::GetFullPath((Join-Path $userHome '.cache\nsfw-guard\quick-try-v0.1.0a4'))
-  if (-not $root.StartsWith("$userHome\", [StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe trial cache path.' }
-  $venv = Join-Path $root 'venv'
-  $python = Join-Path $venv 'Scripts\python.exe'
-  $guard = Join-Path $venv 'Scripts\nsfw-guard.exe'
-  $model = Join-Path $root 'model.onnx'
-  try {
-    if (-not (Test-Path -LiteralPath $python)) {
-      python -m venv $venv
-      if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $python)) { throw 'Python 3.10+ is required.' }
-    }
-    if (-not (Test-Path -LiteralPath $guard)) {
-      & $python -m pip install --no-cache-dir --disable-pip-version-check 'nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl'
-      if ($LASTEXITCODE -ne 0) { throw 'NSFW Guard installation failed.' }
-    }
-    if (Test-Path -LiteralPath $target -PathType Container) {
-      & $guard folder $target --provider cpu --model-path $model --max-files 32 --output-dir (Join-Path $root 'results') --links
-    } elseif (Test-Path -LiteralPath $target -PathType Leaf) {
-      & $guard scan $target --provider cpu --model-path $model
-    } else { throw "Neither a file nor a folder: $target" }
-  } finally {
-    if ($Cleanup -and (Test-Path -LiteralPath $root)) {
-      $cache = Get-Item -LiteralPath $root -Force
-      if (($cache.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Refusing to remove a linked cache.' }
-      Remove-Item -LiteralPath $root -Recurse -Force
-      Write-Host "Removed trial cache: $root"
-    }
-  }
-}
-Invoke-NsfwGuardTrial
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/064df01ee36bc46594559991f4b4b908c2048817/scripts/try.ps1')))
 ```
 
-No manual clone or download is needed. On a new computer, the package,
-dependencies, and pinned model still download automatically once; an internet
-connection is required for that first run. The optional cleanup removes only this
-trial's private cache, not Python, other NSFW Guard installations, or source images.
-Images are not uploaded. Use the full folder command below to scan more than 32 images.
+Append `-Cleanup` to the line to remove this trial's private environment, model,
+and reports after the scan. If neither the user cache nor Documents is writable,
+append `-CacheBase 'D:\a-writable-folder'`. The script checks input read access and
+never requests elevation. It scans at most 32 images in a folder; the full folder
+command below has no such trial limit. The package, dependencies, and model are
+downloaded automatically on first use; source images are not uploaded.
 
 ## Fastest start on Windows
 
