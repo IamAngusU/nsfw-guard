@@ -263,14 +263,21 @@ class Scanner:
                     )
                     if has_alpha:
                         rgba = oriented.convert("RGBA")
-                        images = tuple(
-                            Image.alpha_composite(
-                                Image.new("RGBA", rgba.size, color), rgba
-                            ).convert("RGB")
-                            for color in ((0, 0, 0, 255), (255, 255, 255, 255))
-                        )
+                        # An alpha channel can be fully opaque (common in screenshots).
+                        # Only actual transparency needs two background variants.
+                        has_transparency = rgba.getchannel("A").getextrema()[0] < 255  # type: ignore[no-untyped-call]
+                        if has_transparency:
+                            images = tuple(
+                                Image.alpha_composite(
+                                    Image.new("RGBA", rgba.size, color), rgba
+                                ).convert("RGB")
+                                for color in ((0, 0, 0, 255), (255, 255, 255, 255))
+                            )
+                        else:
+                            images = (rgba.convert("RGB"),)
                     else:
                         images = (oriented.convert("RGB"),)
+                        has_transparency = False
                     for image in images:
                         image.load()
                     return _DecodedImage(
@@ -279,7 +286,7 @@ class Scanner:
                         height,
                         media_format,
                         False,
-                        has_alpha,
+                        has_transparency,
                     )
         except GuardError:
             raise

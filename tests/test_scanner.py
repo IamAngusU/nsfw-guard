@@ -96,6 +96,17 @@ def test_transparency_is_scanned_on_dark_and_light_backgrounds() -> None:
     assert "transparent_image_scanned_on_dark_and_light_backgrounds" in result.reason_codes
 
 
+def test_fully_opaque_rgba_is_scanned_once_without_transparency_reason() -> None:
+    image = Image.new("RGBA", (32, 24), (20, 40, 60, 255))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    backend = FakeBackend([0.55])
+    result = scanner(backend).scan_bytes(buffer.getvalue())
+    assert result.verdict is Verdict.REVIEW
+    assert backend.calls == 1
+    assert "transparent_image_scanned_on_dark_and_light_backgrounds" not in result.reason_codes
+
+
 def test_memory_cache_avoids_repeated_inference() -> None:
     payload = image_bytes()
     backend = FakeBackend([0.2])

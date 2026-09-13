@@ -7,7 +7,8 @@ param(
   [switch]$AcceptDownloads,
   [switch]$PlanOnly,
   [switch]$PortablePython,
-  [ValidateRange(1, 100000)][int]$MaxFiles = 32
+  [ValidateRange(1, 100000)][int]$MaxFiles = 32,
+  [ValidateSet('low-threshold-v1', 'medium-threshold-v1', 'high-threshold-v1')][string]$Policy = 'medium-threshold-v1'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,7 +73,7 @@ function Show-ScanResult($Result, [bool]$IsFolder) {
         Write-Detail $flag.verdict ("score $scoreText  $($flag.relative_path)")
       }
       if ([int]$Result.flagged_count -gt 8) { Write-Detail 'More / Weitere' 'See flags.jsonl / siehe flags.jsonl' }
-      if ($transparentFlag) { Write-Host '  Transparent images: dark + light background; the higher score wins.' -ForegroundColor DarkGray }
+      if ($transparentFlag) { Write-Host '  Alpha-channel files: a4 may scan twice even if opaque; this alone does not cause REVIEW.' -ForegroundColor DarkGray }
       Write-Host '  Scores are uncalibrated model outputs, not probabilities.' -ForegroundColor DarkGray
     }
     if (-not $Cleanup) {
@@ -278,6 +279,7 @@ if ($needsModel) {
 if (-not $needsDownloads) { Write-Ready 'No downloads needed / Keine Downloads noetig.' }
 Write-Detail 'Private cache' $root
 Write-Detail 'Input / Eingabe' $inputItem.FullName
+Write-Detail 'Policy' $Policy
 if ($inputItem.PSIsContainer) { Write-Detail 'Preview limit' "$MaxFiles Bilder / images (-MaxFiles)" }
 Write-Host '  No PATH change. -Cleanup removes only this marked private trial cache.' -ForegroundColor DarkGray
 if ($PlanOnly) {
@@ -362,9 +364,9 @@ try {
   Assert-PlainPath $root
   Write-Section 'SCAN / PRUEFUNG'
   if ($inputItem.PSIsContainer) {
-    $scanOutput = & $guard folder $inputItem.FullName --provider cpu --model-path $model --no-download --max-files $MaxFiles --progress-every 0 --output-dir (Join-Path $root 'results') --links --json
+    $scanOutput = & $guard folder $inputItem.FullName --provider cpu --model-path $model --no-download --policy $Policy --max-files $MaxFiles --progress-every 0 --output-dir (Join-Path $root 'results') --links --json
   } else {
-    $scanOutput = & $guard scan $inputItem.FullName --provider cpu --model-path $model --no-download --json
+    $scanOutput = & $guard scan $inputItem.FullName --provider cpu --model-path $model --no-download --policy $Policy --json
   }
   $scanExit = $LASTEXITCODE
   if ($scanExit -notin @(0, 10, 20)) { throw "Scan failed (exit code $scanExit); check the error above." }
