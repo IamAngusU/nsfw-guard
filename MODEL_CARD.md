@@ -29,8 +29,11 @@ evidence for an irreversible high-impact action.
 The source model card reports 98.56 percent accuracy on its proprietary,
 balanced 20,000-image test set. NSFW Guard has not independently reproduced
 that accuracy claim because the dataset is not public. The included benchmark
-measures runtime only. A manifest-driven evaluator is planned for lawful,
-independently licensed corpora.
+measures runtime only. `nsfw-guard evaluate` can compare folder evidence with
+private, human-labeled SHA-256 manifests without opening the images again; no
+representative corpus is bundled. Two user-confirmed harmless diagram screenshots
+were sent to `REVIEW` around score 0.55. This demonstrates a false-review
+burden but does not estimate its population frequency.
 
 ## Policy threshold limitations
 

@@ -20,6 +20,12 @@ into a destructive action.
 
 > A model score is evidence. It is not a verdict from physics.
 
+> **Accuracy warning:** Harmless diagram screenshots have produced `REVIEW` in
+> real local use. The shipped thresholds have no independent, representative
+> validation, and the false-negative rate is unknown. `ALLOW` does not prove an
+> image safe; `BLOCK` does not prove it explicit. Do not use these outcomes for
+> irreversible automatic decisions. See [accuracy evidence](docs/ACCURACY_EVALUATION.md).
+
 ## Why this exists
 
 Most image-safety demos stop at a floating-point score. Real systems also need to
@@ -36,6 +42,9 @@ NSFW Guard packages those concerns as a small standalone product:
 - **Bounded:** input discovery, pending work, metric samples, pixels, and bytes have
   limits rather than growing with an entire collection.
 - **Auditable:** JSONL results include model, policy, provider, timing, and run IDs.
+- **Measurable quality (current source, not yet the a4 trial wheel):** `evaluate`
+  compares saved results with independent human labels by image digest; it does
+  not re-open or upload images.
 - **Reviewable:** `--links` creates portable HTML review indexes and Windows `.url`
   pointers for `BLOCK`, `REVIEW`, and `ERROR`.
 - **Honest about acceleration:** CPU preparation overlaps with serialized GPU session

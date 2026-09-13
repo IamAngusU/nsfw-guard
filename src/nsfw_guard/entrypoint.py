@@ -4,6 +4,7 @@ import sys
 from collections.abc import Sequence
 
 from .cli import main as legacy_main
+from .evaluation import main as evaluate_main
 from .folder_scan import main as folder_main
 from .metrics_chart import main as chart_main
 from .vision_pipeline import main as vision_main
@@ -17,6 +18,7 @@ commands:
   folder     Scan a folder with bounded parallelism and optional link collections
   bridge     Run the safety-bridge/v1 NDJSON service
   benchmark  Measure one warm model session
+  evaluate   Compare folder evidence with independent human labels (no image reads)
   chart      Render versioned benchmark history as a light-mode SVG
   vision     Attach optional local or explicitly approved remote vision models
   model      Install or inspect the pinned model
@@ -33,6 +35,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     command = arguments[0]
     if command == "folder":
         return folder_main(arguments[1:])
+    if command == "evaluate":
+        return evaluate_main(arguments[1:])
     if command == "chart":
         return chart_main(arguments[1:])
     if command == "vision":

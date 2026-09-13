@@ -20,6 +20,13 @@ gebaut.
 
 > Ein Modell-Score ist Evidenz. Er ist kein physikalisch sicheres Urteil.
 
+> **Genauigkeitswarnung:** Harmlose Diagramm-Screenshots haben im lokalen Einsatz
+> `REVIEW` erhalten. Die mitgelieferten Schwellen sind nicht unabhaengig auf
+> repraesentativen Bildern validiert; die Rate uebersehener NSFW-Bilder ist
+> unbekannt. `ALLOW` beweist nicht, dass ein Bild unbedenklich ist, und `BLOCK`
+> beweist keinen expliziten Inhalt. Keine irreversiblen automatischen Entscheidungen
+> damit treffen. Siehe [Accuracy-Evaluation](docs/ACCURACY_EVALUATION.md).
+
 ## Was das Produkt anders macht
 
 - **Lokal zuerst:** Basisklassifikator und Ordner-Scan laden keine Bilder hoch.
@@ -29,6 +36,9 @@ gebaut.
 - **Begrenzt:** Warteschlange, Metrik-Samples, Bildbytes und Pixel wachsen nicht
   unkontrolliert mit der Sammlung.
 - **Nachvollziehbar:** JSONL-Evidenz nennt Modell, Policy, Provider, Lauf und Timing.
+- **Messbare Qualitaet (aktueller Quellcode, noch nicht im a4-Test-Wheel):**
+  `evaluate` vergleicht gespeicherte Ergebnisse per Bild-Hash mit unabhaengigen
+  menschlichen Labels, ohne Bilder erneut zu oeffnen oder hochzuladen.
 - **Einfach reviewbar:** `--links` erzeugt portable HTML-Indexe und Windows-`.url`-
   Verknuepfungen fuer `BLOCK`, `REVIEW` und `ERROR`.
 - **Ehrlich schnell:** CPU-Vorbereitung laeuft parallel, GPU-Inferenz wird pro Session
