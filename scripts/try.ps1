@@ -40,7 +40,9 @@ if ($CacheBase) {
 } else {
   $bases = @((Join-Path $userHome '.cache'))
   $documents = [Environment]::GetFolderPath('MyDocuments')
-  if ($documents) { $bases += $documents }
+  if ($documents -and (Test-Path -LiteralPath $documents -PathType Container)) {
+    $bases += $documents
+  }
 }
 
 $root = $null
