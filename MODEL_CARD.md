@@ -32,6 +32,16 @@ that accuracy claim because the dataset is not public. The included benchmark
 measures runtime only. A manifest-driven evaluator is planned for lawful,
 independently licensed corpora.
 
+## Policy threshold limitations
+
+The shipped `safety-first-v1`, `balanced-v1`, and `high-precision-v1` profiles
+use fixed score cutoffs. They have not been calibrated or validated here on a
+representative, independently labeled corpus for a particular deployment. Their
+names do not establish measured precision, recall, false-positive or
+false-negative rates, or score calibration. Before relying on verdicts, choose
+thresholds using a separate calibration split and evaluate the resulting
+ALLOW, REVIEW, and BLOCK outcomes on held-out data relevant to the use case.
+
 ## Known risks
 
 - Domain shift can affect illustrations, medical images, cultural contexts,

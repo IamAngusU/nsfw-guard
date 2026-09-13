@@ -127,6 +127,8 @@ falsche E2EE-Behauptung gegenueber dem Modellanbieter. Details stehen in
 ## Grenzen
 
 - Klassifikatoren koennen falsch liegen und Bias enthalten.
+- Die mitgelieferten Policy-Schwellenwerte sind Vorgaben, nicht fuer die eigenen
+  Daten kalibriert oder validiert; siehe [`MODEL_CARD.md`](MODEL_CARD.md).
 - DirectML und CUDA haengen von Betriebssystem, Treiber und Runtime ab.
 - WDDM liefert teilweise nur GPU-Gesamtwerte statt verlaesslichem Prozess-VRAM.
 - Es gibt keine aktive GitHub Action und keine verpflichtende Telemetrie.
@@ -136,7 +138,7 @@ falsche E2EE-Behauptung gegenueber dem Modellanbieter. Details stehen in
 
 Der Anwendungscode steht ab `0.1.0a3` unter AGPL-3.0-only. Das bereits veroeffentlichte
 `0.1.0a1` bleibt MIT. Modell und optionale Runtimes behalten ihre
-jeweiligen Lizenzen, siehe [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+jeweiligen Lizenzen, siehe [`NOTICE.md`](NOTICE.md).
 
 ## Polymorph-Interoperabilitaet
 

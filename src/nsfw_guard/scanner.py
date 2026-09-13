@@ -50,6 +50,52 @@ class _DecodedImage:
     transparency_dual_scan: bool
 
 
+def read_bounded_image_path(path: Path, limits: ScanLimits) -> tuple[bytes, str]:
+    """Read one stable regular file, bounded by the same limits as the base scan."""
+    try:
+        before = path.lstat()
+    except OSError as exc:
+        raise InvalidInputError("The image path could not be opened.") from exc
+    if stat.S_ISLNK(before.st_mode):
+        raise InvalidInputError("Symbolic-link image paths are not accepted.")
+    if not stat.S_ISREG(before.st_mode):
+        raise InvalidInputError("The image path is not a regular file.")
+    if before.st_size > limits.max_bytes:
+        raise ArtifactTooLargeError(
+            "The encoded image exceeds the configured byte limit.",
+            details={"max_bytes": limits.max_bytes, "actual_bytes": before.st_size},
+        )
+
+    chunks: list[bytes] = []
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        with path.open("rb") as handle:
+            opened = os.fstat(handle.fileno())
+            if not os.path.samestat(before, opened):
+                raise SourceChangedError("The image changed before it could be read.")
+            while True:
+                chunk = handle.read(READ_CHUNK_BYTES)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > limits.max_bytes:
+                    raise ArtifactTooLargeError(
+                        "The encoded image exceeded its byte limit while being read.",
+                        details={"max_bytes": limits.max_bytes},
+                    )
+                digest.update(chunk)
+                chunks.append(chunk)
+            after = os.fstat(handle.fileno())
+    except GuardError:
+        raise
+    except OSError as exc:
+        raise InvalidInputError("The image could not be read.") from exc
+    if total != opened.st_size or after.st_size != opened.st_size:
+        raise SourceChangedError("The image size changed while it was being read.")
+    return b"".join(chunks), digest.hexdigest()
+
+
 class Scanner:
     def __init__(
         self,
@@ -113,48 +159,7 @@ class Scanner:
         )
 
     def _read_path(self, path: Path) -> tuple[bytes, str]:
-        try:
-            before = path.lstat()
-        except OSError as exc:
-            raise InvalidInputError("The image path could not be opened.") from exc
-        if stat.S_ISLNK(before.st_mode):
-            raise InvalidInputError("Symbolic-link image paths are not accepted.")
-        if not stat.S_ISREG(before.st_mode):
-            raise InvalidInputError("The image path is not a regular file.")
-        if before.st_size > self.limits.max_bytes:
-            raise ArtifactTooLargeError(
-                "The encoded image exceeds the configured byte limit.",
-                details={"max_bytes": self.limits.max_bytes, "actual_bytes": before.st_size},
-            )
-
-        chunks: list[bytes] = []
-        digest = hashlib.sha256()
-        total = 0
-        try:
-            with path.open("rb") as handle:
-                opened = os.fstat(handle.fileno())
-                if not os.path.samestat(before, opened):
-                    raise SourceChangedError("The image changed before it could be read.")
-                while True:
-                    chunk = handle.read(READ_CHUNK_BYTES)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > self.limits.max_bytes:
-                        raise ArtifactTooLargeError(
-                            "The encoded image exceeded its byte limit while being read.",
-                            details={"max_bytes": self.limits.max_bytes},
-                        )
-                    digest.update(chunk)
-                    chunks.append(chunk)
-                after = os.fstat(handle.fileno())
-        except GuardError:
-            raise
-        except OSError as exc:
-            raise InvalidInputError("The image could not be read.") from exc
-        if total != opened.st_size or after.st_size != opened.st_size:
-            raise SourceChangedError("The image size changed while it was being read.")
-        return b"".join(chunks), digest.hexdigest()
+        return read_bounded_image_path(path, self.limits)
 
     def _scan_payload(
         self,

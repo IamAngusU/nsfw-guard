@@ -31,6 +31,11 @@ nsfw-guard vision enrich "C:\Pictures\.nsfw-guard\latest-summary.json" --config 
 
 The result is a separate `vision/runs/<run-id>/vision-results.jsonl` plus
 `summary.json`. Original NSFW evidence and source images are unchanged.
+For standalone JSONL input, pass `--root`; every routed record must include the
+base scan's `artifact.sha256`. Records without valid digest evidence are reported as
+pipeline errors and are never sent to an adapter. A folder-run summary also carries
+the scan's configured byte and pixel limits. Standalone JSONL uses the default
+25 MiB / 40-megapixel limits, so use the summary when the base run used custom limits.
 
 ## Privacy modes
 
@@ -89,9 +94,13 @@ Only stdout is the protocol channel; diagnostics belong on stderr.
 `{python}` expands to the exact interpreter running NSFW Guard, including its virtual
 environment. This makes module-based adapters work without shell activation.
 
-Command adapters receive an absolute local path. They are code execution and must be
-reviewed like any other local plugin. `trusted = true` is an explicit acknowledgement,
-not a sandbox.
+Command adapters receive an absolute path to a short-lived copy of the verified
+image, not the original path. The copy is bounded by the base scan's byte/pixel limits
+and its bytes must match `artifact.sha256`; a changed source is a per-record error.
+This protects against changes to the original between verification and adapter use.
+Each adapter gets a separate copy, removed when its call finishes. Adapters execute
+code and must be reviewed like any other local plugin. `trusted = true` is an
+explicit acknowledgement, not a sandbox.
 
 ## Remote JSON adapter
 
@@ -133,7 +142,7 @@ per POST for HTTP adapters. Every request contains:
   "type": "analyze",
   "request_id": "unique-id",
   "tasks": ["describe"],
-  "input": {"kind": "local-path", "path": "C:\\Pictures\\one.png"},
+  "input": {"kind": "local-path", "path": "C:\\...\\nsfw-guard-vision-...\\verified.png"},
   "context": {"base_verdict": "REVIEW", "scores": {"nsfw": 0.48}}
 }
 ```
@@ -171,6 +180,7 @@ does not pretend to be a semantic vision model.
 - the source NSFW JSONL is read record by record
 - each configured model is loaded or connected once
 - adapters only run for selected verdict groups
+- selected images are byte-bound, digest-verified, and passed as temporary snapshots
 - remote pixels are resized before Base64 encoding
 - responses have a strict byte ceiling
 - outputs are flushed, synchronized, and atomically replaced

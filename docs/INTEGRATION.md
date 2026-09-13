@@ -19,12 +19,14 @@ The caller must apply these rules:
 - Do not persist source paths unless the surrounding product explicitly needs
   them.
 
-## Future Polymorph adapter
+## Polymorph integration
 
-Polymorph can later call the same bridge before admitting an image-bearing
-record. That integration should use the exact source SHA-256 as the join key
-between Polymorph evidence and NSFW Guard evidence. This repository does not
-modify or activate that integration yet.
+Polymorph `0.4.0a11` and newer can auto-discover the bridge and use the
+`safety-bridge/v1` contract without an adapter package. See
+[`INTEROPERABILITY.md`](INTEROPERABILITY.md) for the current commands and wire
+contract. When correlating evidence across the two products, use the exact
+source SHA-256 as the join key. Polymorph remains a separate product; this
+repository does not control its admission behavior.
 
 ## Future hub
 

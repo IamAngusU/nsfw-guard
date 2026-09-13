@@ -13,7 +13,7 @@ platform.
 | scanner | per-image byte/pixel limits, decoding, result and error records |
 | folder scanner | bounded scheduling, stable order, metrics, atomic run evidence |
 | link collection | non-destructive reviewer navigation to original files |
-| bridge | line-oriented machine protocol for future products such as Polymorph |
+| bridge | line-oriented machine protocol for external consumers, including Polymorph |
 | chart | dependency-free rendering of sanitized benchmark history |
 | vision adapters | optional persistent local or HTTPS model enrichment |
 

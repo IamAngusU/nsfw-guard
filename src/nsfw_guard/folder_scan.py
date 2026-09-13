@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import heapq
 import html
 import json
 import os
@@ -32,6 +33,7 @@ from .scanner import ScanLimits, Scanner
 JsonObject = dict[str, Any]
 MIB = 1024 * 1024
 SUPPORTED_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+MAX_DISCOVERY_FILES = 100_000
 POLICY_NAMES = ("balanced-v1", "high-precision-v1", "safety-first-v1")
 PROVIDER_NAMES = ("cpu", "cuda", "directml")
 
@@ -88,6 +90,20 @@ class WorkerPlan:
 class FolderScanOutcome:
     summary: JsonObject
     exit_code: int
+
+
+@dataclass(frozen=True, slots=True)
+class ImageDiscovery:
+    paths: list[Path]
+    supported_candidate_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ReversePathKey:
+    value: tuple[str, str]
+
+    def __lt__(self, other: _ReversePathKey) -> bool:
+        return self.value > other.value
 
 
 def recommend_inference_threads(
@@ -161,8 +177,19 @@ class LinkCollection:
     def __init__(self, root: Path) -> None:
         self.root = root
         self.counts: Counter[str] = Counter()
+        self._html_parts: dict[str, Path] = {}
         for verdict in ("BLOCK", "REVIEW", "ERROR"):
-            (root / verdict).mkdir(parents=True, exist_ok=False)
+            verdict_dir = root / verdict
+            verdict_dir.mkdir(parents=True, exist_ok=False)
+            html_part = verdict_dir / ".index.html.part"
+            write_text_atomic(
+                html_part,
+                '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                f"<title>NSFW Guard {verdict} review links</title></head><body>"
+                f"<h1>{verdict} review links</h1><p>Links open original local files. "
+                "No images were copied or changed.</p><ol>\n",
+            )
+            self._html_parts[verdict] = html_part
 
     @staticmethod
     def _safe_stem(value: str) -> str:
@@ -185,14 +212,24 @@ class LinkCollection:
             target,
             f"[InternetShortcut]\nURL={source.resolve().as_uri()}\n",
         )
+        source_uri = html.escape(source.resolve().as_uri(), quote=True)
+        label = html.escape(source.name)
+        with self._html_parts[verdict].open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(f'<li><a href="{source_uri}">{index}: {label}</a></li>\n')
 
     def finalize(self, *, run_id: str, profile: str) -> Path:
         cards = []
         colors = {"BLOCK": "#b42318", "REVIEW": "#b54708", "ERROR": "#475467"}
         for verdict in ("BLOCK", "REVIEW", "ERROR"):
+            html_part = self._html_parts[verdict]
+            with html_part.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write("</ol></body></html>\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(html_part, html_part.with_name("index.html"))
             count = self.counts[verdict]
             cards.append(
-                f'<a class="card" href="./{verdict}/">'
+                f'<a class="card" href="./{verdict}/index.html">'
                 f'<span style="color:{colors[verdict]}">{html.escape(verdict)}</span>'
                 f"<strong>{count}</strong><small>Open link folder</small></a>"
             )
@@ -217,8 +254,9 @@ code{{font-family:Consolas,monospace}}@media(max-width:600px){{main{{margin:0;pa
         write_text_atomic(
             self.root / "README.txt",
             "NSFW Guard link collection\n\n"
-            "Open index.html or one of the verdict folders. Each .url file points "
-            "to the original image. Deleting a link does not delete the image.\n",
+            "Open index.html, then a verdict's index.html for portable review links. "
+            "Windows .url shortcuts are also available. Links point to original "
+            "images; deleting a link does not delete an image.\n",
         )
         return index_path
 
@@ -255,20 +293,60 @@ def discover_images(
     recursive: bool,
     max_files: int | None = None,
 ) -> list[Path]:
+    return _discover_images(root, recursive=recursive, max_files=max_files).paths
+
+
+def _discover_images(
+    root: Path,
+    *,
+    recursive: bool,
+    max_files: int | None = None,
+) -> ImageDiscovery:
     if not root.is_dir():
         raise InvalidInputError("The folder does not exist or is not a directory.")
     if max_files is not None and max_files < 1:
         raise InvalidInputError("max_files must be positive when supplied.")
+    if max_files is not None and max_files > MAX_DISCOVERY_FILES:
+        raise InvalidInputError(
+            f"max_files cannot exceed the discovery path limit of {MAX_DISCOVERY_FILES}.",
+            details={"max_files": max_files, "discovery_path_limit": MAX_DISCOVERY_FILES},
+        )
     candidates = root.rglob("*") if recursive else root.glob("*")
-    paths = [
-        path
-        for path in candidates
-        if path.is_file()
-        and path.suffix.casefold() in SUPPORTED_SUFFIXES
-        and not any(part.casefold() == ".nsfw-guard" for part in path.relative_to(root).parts)
-    ]
-    paths.sort(key=lambda path: path.relative_to(root).as_posix().casefold())
-    return paths if max_files is None else paths[:max_files]
+    paths: list[Path] = []
+    top_k: list[tuple[_ReversePathKey, Path]] = []
+    supported_count = 0
+    for path in candidates:
+        if not path.is_file() or path.suffix.casefold() not in SUPPORTED_SUFFIXES:
+            continue
+        relative = path.relative_to(root)
+        if any(part.casefold() == ".nsfw-guard" for part in relative.parts):
+            continue
+        supported_count += 1
+        if max_files is None:
+            if supported_count > MAX_DISCOVERY_FILES:
+                raise InvalidInputError(
+                    f"Folder contains more than {MAX_DISCOVERY_FILES} supported images. "
+                    "Split the folder or use --max-files for an explicit partial selection.",
+                    details={"discovery_path_limit": MAX_DISCOVERY_FILES},
+                )
+            paths.append(path)
+            continue
+        relative_text = relative.as_posix()
+        key = (relative_text.casefold(), relative_text)
+        entry = (_ReversePathKey(key), path)
+        if len(top_k) < max_files:
+            heapq.heappush(top_k, entry)
+        elif key < top_k[0][0].value:
+            heapq.heapreplace(top_k, entry)
+    if max_files is not None:
+        paths = [path for _, path in top_k]
+    paths.sort(
+        key=lambda path: (
+            path.relative_to(root).as_posix().casefold(),
+            path.relative_to(root).as_posix(),
+        )
+    )
+    return ImageDiscovery(paths=paths, supported_candidate_count=supported_count)
 
 
 def recommend_workers(
@@ -447,9 +525,11 @@ def _host_total_vram_peak_delta_mib(
 
 def scan_folder(config: FolderScanConfig) -> FolderScanOutcome:
     root = config.root.resolve()
-    files = discover_images(root, recursive=config.recursive, max_files=config.max_files)
+    discovery = _discover_images(root, recursive=config.recursive, max_files=config.max_files)
+    files = discovery.paths
     if not files:
         raise InvalidInputError("The folder contains no supported image candidates.")
+    selection_truncated = discovery.supported_candidate_count > len(files)
     output_root = (
         config.output_dir.resolve() if config.output_dir is not None else root / ".nsfw-guard"
     )
@@ -458,7 +538,12 @@ def scan_folder(config: FolderScanConfig) -> FolderScanOutcome:
     run_dir.mkdir(parents=True, exist_ok=False)
     write_json_atomic(
         run_dir / "status.json",
-        {"run_id": run_id, "complete": False, "input_count": len(files)},
+        {
+            "run_id": run_id,
+            "complete": False,
+            "input_count": len(files),
+            "selection_truncated": selection_truncated,
+        },
     )
 
     host = _host_evidence()
@@ -701,6 +786,14 @@ def scan_folder(config: FolderScanConfig) -> FolderScanOutcome:
         "root": str(root),
         "input_count": len(files),
         "scanned_count": completed_count,
+        "discovery": {
+            "supported_candidate_count": discovery.supported_candidate_count,
+            "selected_count": len(files),
+            "omitted_count": discovery.supported_candidate_count - len(files),
+            "selection_truncated": selection_truncated,
+            "path_limit": MAX_DISCOVERY_FILES,
+            "selection_order": "casefolded relative path, then original relative path",
+        },
         "input_bytes": total_bytes,
         "counts": dict(sorted(counts.items())),
         "flagged_count": sum(counts[name] for name in ("REVIEW", "BLOCK", "ERROR")),
@@ -752,7 +845,10 @@ def scan_folder(config: FolderScanConfig) -> FolderScanOutcome:
         "flag_semantics": "REVIEW, BLOCK, and ERROR; source images are unchanged",
     }
     write_json_atomic(run_dir / "summary.json", summary)
-    write_json_atomic(run_dir / "status.json", {"run_id": run_id, "complete": True})
+    write_json_atomic(
+        run_dir / "status.json",
+        {"run_id": run_id, "complete": True, "selection_truncated": selection_truncated},
+    )
     output_root.mkdir(parents=True, exist_ok=True)
     write_json_atomic(output_root / "latest-summary.json", summary)
     copy_atomic(flags_path, output_root / "latest-flags.jsonl")
@@ -760,6 +856,13 @@ def scan_folder(config: FolderScanConfig) -> FolderScanOutcome:
         write_text_atomic(
             output_root / "OPEN-LATEST-RESULTS.url",
             f"[InternetShortcut]\nURL={links_index.resolve().as_uri()}\n",
+        )
+        write_text_atomic(
+            output_root / "OPEN-LATEST-RESULTS.html",
+            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            "<title>Latest NSFW Guard review</title></head><body>"
+            f'<a href="{html.escape(links_index.resolve().as_uri(), quote=True)}">'
+            "Open latest review links</a></body></html>\n",
         )
     return FolderScanOutcome(summary=summary, exit_code=_exit_code(counts, config.fail_on))
 
@@ -807,7 +910,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Advisory worker-planning budget, not an OS hard memory cap.",
     )
-    parser.add_argument("--max-files", type=int)
+    parser.add_argument(
+        "--max-files",
+        type=int,
+        help=(
+            f"Scan only the first N images in deterministic path order "
+            f"(1..{MAX_DISCOVERY_FILES}); the full candidate count is reported."
+        ),
+    )
     parser.add_argument("--progress-every", type=int, default=100)
     parser.add_argument("--fail-on", choices=("never", "error", "block", "review"), default="error")
     parser.add_argument("--json", action="store_true")
@@ -866,6 +976,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         reports = cast(JsonObject, outcome.summary["reports"])
         print("NSFW Guard folder scan complete")
         print(f"Images: {outcome.summary['scanned_count']}")
+        discovery = cast(JsonObject, outcome.summary["discovery"])
+        if discovery["selection_truncated"]:
+            print(
+                f"Partial selection: {discovery['selected_count']} of "
+                f"{discovery['supported_candidate_count']} supported images "
+                "(--max-files)."
+            )
         print(
             f"ALLOW {counts.get('ALLOW', 0)} | REVIEW {counts.get('REVIEW', 0)} | "
             f"BLOCK {counts.get('BLOCK', 0)} | ERROR {counts.get('ERROR', 0)}"

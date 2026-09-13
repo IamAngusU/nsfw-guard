@@ -212,6 +212,8 @@ See [`docs/VISION_ADAPTERS.md`](docs/VISION_ADAPTERS.md) and the disabled starte
 
 - The default ONNX model is pinned by URL and SHA-256 and licensed Apache-2.0.
 - Scores can be wrong, biased, or unsuitable for a particular policy or population.
+- Shipped policy thresholds are presets, not calibrated or validated for your
+  data; see [`MODEL_CARD.md`](MODEL_CARD.md) before relying on verdicts.
 - `REVIEW` exists because uncertainty should stay visible.
 - Hardware metrics report their measurement scope. Windows WDDM may expose only
   host-total GPU usage, not reliable per-process VRAM.
@@ -227,7 +229,7 @@ See [`SECURITY.md`](SECURITY.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 NSFW Guard releases from `0.1.0a3` are available under AGPL-3.0-only. The already
 published `0.1.0a1` release remains MIT. The interoperability protocol is separately
 MIT-licensed so another tool can speak it without inheriting an implementation. Model and optional runtime components
-retain their own licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+retain their own licenses; see [`NOTICE.md`](NOTICE.md).
 
 ## Polymorph interoperability
 

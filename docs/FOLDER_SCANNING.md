@@ -14,6 +14,17 @@ Discovery is deterministic and recursive. Any directory component named
 `.nsfw-guard`, regardless of case, is excluded so generated evidence cannot feed back
 into later runs.
 
+Without `--max-files`, discovery retains at most 100,000 supported image paths. If it
+encounters another candidate, the command fails before model loading or report
+creation; it does not silently scan a prefix. Split larger collections or explicitly
+request a partial selection with `--max-files N` (1 through 100,000). That option
+traverses the entire tree to find the first N paths in case-insensitive relative-path
+order, using original spelling to break ties. It keeps at most N paths in memory,
+but does not avoid the time and filesystem I/O of a full traversal. The summary
+records the total supported candidate count, selected count, omitted count, and
+whether selection was truncated. `status.json` also marks a truncated selection;
+`complete` means the selected batch finished, not that every candidate was scanned.
+
 ## Pipeline design
 
 The scanner does not materialize all image bytes, decoded tensors, or completed
@@ -23,7 +34,7 @@ discovery order.
 ```text
 paths on disk
     |
-deterministic iterator
+bounded discovery / deterministic selection
     |
 at most max_in_flight tasks
     |
@@ -62,7 +73,14 @@ limits are hard input boundaries.
 
 `--links` creates one run-local collection each for `BLOCK`, `REVIEW`, and `ERROR`.
 Entries are standard Windows Internet Shortcut files whose URL points to a local
-`file:///` URI. Names are sanitized and collision-resistant.
+`file:///` URI. Names are sanitized and collision-resistant. These `.url` files remain
+available for existing Windows workflows. Each verdict folder now also has a portable
+`index.html` with direct links to the original local files, and the run-level
+`links/index.html` navigates to those pages. `OPEN-LATEST-RESULTS.html` points to the
+latest run on every platform; the existing `.url` pointer remains. On Linux and macOS,
+open the HTML indexes rather than relying on `.url` file associations. The links work
+only where the original local paths are accessible; browsers may ask before opening
+local files.
 
 This design was chosen over metadata mutation because embedding a flag into an image:
 
@@ -73,11 +91,12 @@ This design was chosen over metadata mutation because embedding a flag into an i
 - makes reclassification and policy versioning harder
 
 The generated `index.html` is local, dependency-free, light-mode, and contains only
-run counts and navigation to collections. It does not embed image bytes.
+run counts and navigation to collections. Per-verdict HTML pages contain local file
+paths, not image bytes. Keep review output private as you would the JSONL evidence.
 
 ## Output contract
 
-`all-results.jsonl` contains one terminal record per discovered supported image.
+`all-results.jsonl` contains one terminal record per selected supported image.
 `flags.jsonl` contains the subset whose terminal outcome is not `ALLOW`.
 
 `summary.json` contains:
@@ -86,6 +105,7 @@ run counts and navigation to collections. It does not embed image bytes.
 - run ID and UTC timestamps
 - model identity and provider evidence
 - source counts and total bytes
+- discovery candidate, selected, and omitted counts (including partial-selection status)
 - outcome counts
 - worker and queue plan
 - configured byte, pixel, and memory limits

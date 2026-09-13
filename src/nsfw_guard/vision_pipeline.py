@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
+import io
 import json
 import os
 import shutil
 import sys
+import tempfile
 import time
+import warnings
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
 
+from PIL import Image, UnidentifiedImageError
+
 from . import __version__
+from .errors import GuardError
+from .scanner import ScanLimits, read_bounded_image_path
 from .vision_adapters import (
     JsonObject,
     VisionAdapter,
@@ -22,7 +30,13 @@ from .vision_adapters import (
     close_adapters,
     create_adapters,
 )
-from .vision_config import VisionConfig, VisionConfigError, load_vision_config, starter_config
+from .vision_config import (
+    VisionConfig,
+    VisionConfigError,
+    VisionModelConfig,
+    load_vision_config,
+    starter_config,
+)
 from .vision_resources import VisionResourceMonitor
 
 
@@ -31,6 +45,7 @@ class VisionInput:
     results_path: Path
     root: Path
     source_run_id: str | None
+    limits: ScanLimits = field(default_factory=ScanLimits)
 
 
 @dataclass
@@ -121,24 +136,66 @@ def resolve_vision_input(path: Path, explicit_root: Path | None) -> VisionInput:
     if not isinstance(root_value, (str, Path)):
         raise VisionConfigError("summary has no root path; pass --root")
     source_run_id = summary.get("run_id")
+    limits_value = summary.get("limits", {})
+    if not isinstance(limits_value, dict):
+        raise VisionConfigError("input summary limits must be an object")
+    defaults = ScanLimits()
+    max_bytes = limits_value.get("max_bytes", defaults.max_bytes)
+    max_pixels = limits_value.get("max_pixels", defaults.max_pixels)
+    if any(type(value) is not int or value <= 0 for value in (max_bytes, max_pixels)):
+        raise VisionConfigError("input summary image limits must be positive integers")
     return VisionInput(
         Path(cast(str, reports["all_results"])).resolve(),
         Path(root_value).resolve(),
         str(source_run_id) if source_run_id is not None else None,
+        ScanLimits(max_bytes=max_bytes, max_pixels=max_pixels),
     )
 
 
 def _safe_source(root: Path, relative_path: object) -> Path:
     if not isinstance(relative_path, str) or not relative_path:
         raise VisionAdapterError("input record has no relative_path")
-    candidate = (root / relative_path).resolve()
+    candidate = root / relative_path
     try:
-        inside = os.path.commonpath((str(root), str(candidate))) == str(root)
+        inside = os.path.commonpath((str(root), str(candidate.resolve()))) == str(root)
     except ValueError as exc:
         raise VisionAdapterError("input path is outside the source root") from exc
     if not inside:
         raise VisionAdapterError("input path is outside the source root")
     return candidate
+
+
+def _verified_payload(source: Path, artifact: object, limits: ScanLimits) -> bytes:
+    if not isinstance(artifact, dict):
+        raise VisionAdapterError("vision_source_missing_sha256_evidence")
+    expected = artifact.get("sha256")
+    if (
+        not isinstance(expected, str)
+        or len(expected) != 64
+        or any(character not in "0123456789abcdef" for character in expected.lower())
+    ):
+        raise VisionAdapterError("vision_source_missing_sha256_evidence")
+    try:
+        payload, actual = read_bounded_image_path(source, limits)
+    except GuardError as exc:
+        raise VisionAdapterError(f"vision_source_unavailable: {exc.code}") from exc
+    if not hmac.compare_digest(actual, expected.lower()):
+        raise VisionAdapterError("vision_source_changed_after_base_scan")
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(payload)) as image:
+                width, height = image.size
+                if image.format not in limits.allowed_formats:
+                    raise VisionAdapterError("vision_source_unsupported_image_format")
+                if width <= 0 or height <= 0 or width * height > limits.max_pixels:
+                    raise VisionAdapterError("vision_source_exceeds_pixel_limit")
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise VisionAdapterError("vision_source_exceeds_pixel_limit") from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise VisionAdapterError("vision_source_invalid_image") from exc
+
+    return payload
 
 
 def _clean_error(error: BaseException, root: Path) -> str:
@@ -150,40 +207,24 @@ def _selected(model_when: frozenset[str], verdict: str) -> bool:
     return "ALL" in model_when or verdict in model_when
 
 
-def _analyze_record(
+def _run_selected_adapters(
+    payload: bytes,
+    suffix: str,
     record: JsonObject,
-    *,
-    root: Path,
-    config: VisionConfig,
+    verdict: str,
+    models: tuple[VisionModelConfig, ...],
     adapters: dict[str, VisionAdapter],
     stats: dict[str, ModelStats],
-) -> tuple[JsonObject, int]:
-    verdict = str(record.get("verdict", "ERROR")).upper()
+    root: Path,
+) -> tuple[list[JsonObject], int]:
     analyses: list[JsonObject] = []
     errors = 0
-    try:
-        source = _safe_source(root, record.get("relative_path"))
-    except VisionAdapterError as exc:
-        return (
-            {
-                "schema_version": 1,
-                "index": record.get("index"),
-                "relative_path": record.get("relative_path"),
-                "base_verdict": verdict,
-                "analyses": [],
-                "pipeline_error": _clean_error(exc, root),
-            },
-            1,
-        )
-
     context: JsonObject = {
         "base_verdict": verdict,
         "scores": record.get("scores"),
         "artifact": record.get("artifact"),
     }
-    for model in config.enabled_models:
-        if not _selected(model.when, verdict):
-            continue
+    for model in models:
         started = time.perf_counter()
         failed = False
         analysis: JsonObject = {
@@ -192,7 +233,12 @@ def _analyze_record(
             "adapter": model.adapter,
         }
         try:
-            response = adapters[model.id].analyze(source, tasks=model.tasks, context=context)
+            # A fresh copy per adapter prevents one adapter from changing a later
+            # adapter's input. Neither adapter receives the mutable original path.
+            with tempfile.TemporaryDirectory(prefix="nsfw-guard-vision-") as directory:
+                staged = Path(directory) / f"verified{suffix}"
+                staged.write_bytes(payload)
+                response = adapters[model.id].analyze(staged, tasks=model.tasks, context=context)
             analysis["ok"] = bool(response.get("ok"))
             if response.get("ok") is True:
                 analysis["outputs"] = response.get("outputs", {})
@@ -210,6 +256,54 @@ def _analyze_record(
         analysis["elapsed_ms"] = round(elapsed_ms, 4)
         stats[model.id].add(elapsed_ms, failed=failed)
         analyses.append(analysis)
+    return analyses, errors
+
+
+def _analyze_record(
+    record: JsonObject,
+    *,
+    root: Path,
+    config: VisionConfig,
+    adapters: dict[str, VisionAdapter],
+    stats: dict[str, ModelStats],
+    limits: ScanLimits | None = None,
+) -> tuple[JsonObject, int]:
+    verdict = str(record.get("verdict", "ERROR")).upper()
+    try:
+        source = _safe_source(root, record.get("relative_path"))
+    except VisionAdapterError as exc:
+        return (
+            {
+                "schema_version": 1,
+                "index": record.get("index"),
+                "relative_path": record.get("relative_path"),
+                "base_verdict": verdict,
+                "analyses": [],
+                "pipeline_error": _clean_error(exc, root),
+            },
+            1,
+        )
+    models = tuple(model for model in config.enabled_models if _selected(model.when, verdict))
+    analyses: list[JsonObject] = []
+    errors = 0
+    if models:
+        try:
+            payload = _verified_payload(source, record.get("artifact"), limits or ScanLimits())
+            analyses, errors = _run_selected_adapters(
+                payload, source.suffix.lower(), record, verdict, models, adapters, stats, root
+            )
+        except (OSError, VisionAdapterError) as exc:
+            return (
+                {
+                    "schema_version": 1,
+                    "index": record.get("index"),
+                    "relative_path": record.get("relative_path"),
+                    "base_verdict": verdict,
+                    "analyses": [],
+                    "pipeline_error": _clean_error(exc, root),
+                },
+                1,
+            )
     return (
         {
             "schema_version": 1,
@@ -272,6 +366,7 @@ def enrich_vision_results(
                     config=config,
                     adapters=adapters,
                     stats=stats,
+                    limits=source.limits,
                 )
                 output_handle.write(
                     json.dumps(enriched, ensure_ascii=True, separators=(",", ":")) + "\n"
