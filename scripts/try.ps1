@@ -7,9 +7,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$cacheName = 'quick-try-v0.1.0a4-ps1'
+$cacheName = 'quick-try-v0.1.0a4-sha256-ps1'
 $markerText = 'nsfw-guard-trial-v1'
-$wheel = 'nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl'
+$wheel = 'nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl#sha256=754889cf0bd646f8f861c27fe4b1b25cd701c91f3813ac7a2bbb01200368c124'
 
 function Assert-PlainPath([string]$Path) {
   $cursor = [IO.Path]::GetFullPath($Path)
@@ -145,7 +145,8 @@ try {
   }
   if (-not (Test-Path -LiteralPath $guard)) {
     & $python -m pip install --no-cache-dir --disable-pip-version-check $wheel
-    if ($LASTEXITCODE -ne 0) { throw 'Package installation failed; check the network and free space.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Package installation failed; check the pip output, network and free space.' }
+    if (-not (Test-Path -LiteralPath $guard)) { throw 'Package installation did not create the CLI.' }
   }
   Assert-PlainPath $root
   if ($inputItem.PSIsContainer) {
