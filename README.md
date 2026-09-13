@@ -49,13 +49,13 @@ legal, employment, moderation, or law-enforcement decisions.
 ## Try it on your own image (Windows PowerShell)
 
 With Python 3.10+ installed, paste this one line into PowerShell or Windows
-Terminal. It runs the [bootstrap script pinned to a specific commit](https://github.com/IamAngusU/nsfw-guard/blob/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1)
+Terminal. It runs the [bootstrap script pinned to a specific commit](https://github.com/IamAngusU/nsfw-guard/blob/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1)
 and asks for an image or folder path. No clone, administrator rights, or image upload
 by NSFW Guard are needed. This convenience command executes remote PowerShell code;
 inspect the pinned source or verify its checksum below before executing it.
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1')))
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1')))
 ```
 
 Append `-Cleanup` to the line to remove this trial's private environment, model,
@@ -63,8 +63,10 @@ and reports after the scan. If the user cache is not writable, append
 `-CacheBase 'D:\a-writable-folder'`. The script checks input read access and
 never requests elevation. It scans at most 32 images in a folder; the full folder
 command below has no such trial limit. It automatically downloads the released
-`0.1.0a4` package, dependencies, and pinned model on first use; current source on
-`main` is `0.1.0a5.dev0`. Reports include paths and scores, so choose a private,
+`0.1.0a4` package, dependencies, and pinned model on first use. The script checks
+the released wheel's pinned SHA-256 before installation; third-party dependencies
+are not hash-locked. The current `main` source is `0.1.0a5.dev0`. Reports include
+paths and scores, so choose a private,
 non-synced location if you set `-CacheBase`.
 
 <details>
@@ -75,18 +77,26 @@ This is the same pinned script, not a sandbox. Paste the first three lines, insp
 line for an ephemeral test.
 
 ```powershell
-$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'
+$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1'
 $sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($trialScript))).Replace('-', '')
-if ($sha256 -ne '3C99AB5C9DE636D89F6A2A351ABFA3864229702722D05B58F8FC3B72CFDED9CA') { throw 'Bootstrap SHA-256 mismatch.' }
+if ($sha256 -ne '7E970A0A40C4FA4169E935462B1F88C35BCB53ECA886DA3A4FF5ED3AF3CF1022') { throw 'Bootstrap SHA-256 mismatch.' }
 & ([scriptblock]::Create($trialScript))
 ```
 
 </details>
 
-Older launchers could place the trial cache in Windows Documents, which may be
-OneDrive-synced. To remove that **existing, marked cache without another scan**, append
-`-CleanupOnly -CacheBase ([Environment]::GetFolderPath('MyDocuments'))` to the current
-one-liner. This cannot undo a sync that already occurred.
+This launcher uses a new cache rather than trusting an installation made before
+wheel verification. To remove the **old, marked cache without another scan**, run
+the earlier pinned launcher in cleanup-only mode:
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'))) -CleanupOnly
+```
+
+Older launchers could place that cache in Windows Documents, which may be
+OneDrive-synced. If so, append
+`-CacheBase ([Environment]::GetFolderPath('MyDocuments'))` to the cleanup line.
+This cannot undo a sync that already occurred.
 
 ## Fastest start on Windows
 
@@ -111,7 +121,7 @@ are `Install.cmd`, `Install-DirectML.cmd`, and `Scan-Folder.cmd`.
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\python.exe -m pip install "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl"
+.venv\Scripts\python.exe -m pip install "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl#sha256=754889cf0bd646f8f861c27fe4b1b25cd701c91f3813ac7a2bbb01200368c124"
 .venv\Scripts\nsfw-guard.exe model install
 .venv\Scripts\nsfw-guard.exe folder "C:\Pictures" --provider cpu --links
 ```
@@ -291,7 +301,7 @@ retain their own licenses; see [`NOTICE.md`](NOTICE.md).
 without an adapter package:
 
 ```powershell
-python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl"
+python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl#sha256=754889cf0bd646f8f861c27fe4b1b25cd701c91f3813ac7a2bbb01200368c124"
 polymorph guard --doctor
 polymorph guard C:\images\sample.jpg
 ```

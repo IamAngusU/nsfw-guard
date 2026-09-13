@@ -42,14 +42,14 @@ vollautomatische rechtliche, berufliche oder behoerdliche Entscheidungen.
 ## Mit eigenem Bild ausprobieren (Windows PowerShell)
 
 Mit installiertem Python 3.10+ diese eine Zeile in PowerShell oder Windows Terminal
-kopieren. Sie fuehrt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1)
+kopieren. Sie fuehrt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1)
 aus und fragt nach einem Bild- oder Ordnerpfad. Klonen, Adminrechte und ein
 Bild-Upload durch NSFW Guard sind nicht noetig. Der bequeme Einzeiler fuehrt
 entfernten PowerShell-Code aus; wer das zuvor pruefen moechte, kann den Quellcode
 ansehen und den Hash wie unten vergleichen.
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1')))
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1')))
 ```
 
 Fuer sofortiges Entfernen der privaten Test-Installation samt Modell und Berichten
@@ -58,7 +58,9 @@ Fuer sofortiges Entfernen der privaten Test-Installation samt Modell und Bericht
 prueft Leserechte und verlangt keine Adminrechte. Ein Ordner-Test scannt maximal
 32 Bilder; der vollstaendige Ordner-Scan steht weiter unten. Das veroeffentlichte
 Paket `0.1.0a4`, Abhaengigkeiten und Modell werden beim ersten Mal automatisch
-geladen; der aktuelle `main`-Quellstand ist `0.1.0a5.dev0`. Berichte enthalten
+geladen. Vor der Installation prueft das Skript den fest gepinnten SHA-256 des
+Release-Wheels; Drittanbieter-Abhaengigkeiten sind nicht per Hash fixiert. Der
+aktuelle `main`-Quellstand ist `0.1.0a5.dev0`. Berichte enthalten
 Pfade und Scores. Wer `-CacheBase` setzt, sollte einen privaten, nicht
 synchronisierten Ort waehlen.
 
@@ -70,19 +72,26 @@ ausfuehren, `$trialScript` bei Bedarf ansehen und dann die letzte Zeile starten.
 Fuer einen fluechtigen Test `-Cleanup` an die letzte Zeile anhaengen.
 
 ```powershell
-$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'
+$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1'
 $sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($trialScript))).Replace('-', '')
-if ($sha256 -ne '3C99AB5C9DE636D89F6A2A351ABFA3864229702722D05B58F8FC3B72CFDED9CA') { throw 'Bootstrap SHA-256 mismatch.' }
+if ($sha256 -ne '7E970A0A40C4FA4169E935462B1F88C35BCB53ECA886DA3A4FF5ED3AF3CF1022') { throw 'Bootstrap SHA-256 mismatch.' }
 & ([scriptblock]::Create($trialScript))
 ```
 
 </details>
 
-Aeltere Startskripte konnten den Test-Cache in Windows-Dokumente legen; dieser
-Ordner kann mit OneDrive synchronisiert sein. Zum Entfernen **dieses vorhandenen,
-markierten Caches ohne erneuten Scan** an den aktuellen Einzeiler
-`-CleanupOnly -CacheBase ([Environment]::GetFolderPath('MyDocuments'))` anhaengen.
-Eine bereits erfolgte Synchronisierung macht das nicht rueckgaengig.
+Dieses Startskript verwendet einen neuen Cache, damit eine Installation von vor
+der Wheel-Pruefung nicht weiterverwendet wird. Den **alten, markierten Cache ohne
+erneuten Scan** mit dem vorherigen, fest gepinnten Skript entfernen:
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'))) -CleanupOnly
+```
+
+Aeltere Startskripte konnten den Cache in Windows-Dokumente legen; dieser Ordner
+kann mit OneDrive synchronisiert sein. Dann an die Bereinigungszeile
+`-CacheBase ([Environment]::GetFolderPath('MyDocuments'))` anhaengen. Eine bereits
+erfolgte Synchronisierung macht das nicht rueckgaengig.
 
 ## In zwei Befehlen starten
 
@@ -196,7 +205,7 @@ jeweiligen Lizenzen, siehe [`NOTICE.md`](NOTICE.md).
 sie ohne zusaetzliches Adapter-Paket:
 
 ```powershell
-python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl"
+python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl#sha256=754889cf0bd646f8f861c27fe4b1b25cd701c91f3813ac7a2bbb01200368c124"
 polymorph guard --doctor
 polymorph guard C:\Bilder\beispiel.jpg
 ```
