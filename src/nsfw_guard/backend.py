@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +56,7 @@ class OnnxBackend:
             )
 
         self._spec = spec
+        self._run_lock = threading.Lock() if provider in {"cuda", "directml"} else None
         self._model_path = ensure_model(model_path, spec, allow_download=allow_download)
         options = ort.SessionOptions()
         options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -154,6 +156,7 @@ class OnnxBackend:
             "active_providers": self._session.get_providers(),
             "threads": self._threads,
             "cuda_arena_limit_mib": self._cuda_arena_limit_mib,
+            "serialized_inference": self._run_lock is not None,
             "model_load_ms": round(self._load_ms, 4),
         }
 
@@ -170,7 +173,11 @@ class OnnxBackend:
 
         inference_started = time.perf_counter()
         try:
-            raw = self._session.run([self._output_name], {self._input_name: inputs})[0]
+            if self._run_lock is None:
+                raw = self._session.run([self._output_name], {self._input_name: inputs})[0]
+            else:
+                with self._run_lock:
+                    raw = self._session.run([self._output_name], {self._input_name: inputs})[0]
         except Exception as exc:
             raise InferenceError("ONNX inference failed.") from exc
         inference_ms = (time.perf_counter() - inference_started) * 1000.0

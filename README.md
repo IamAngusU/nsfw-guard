@@ -1,133 +1,207 @@
-# NSFW Guard
+<p align="center">
+  <img src="docs/assets/brand-mark.svg" width="132" alt="NSFW Guard mark">
+</p>
 
-Fast, local-first image safety decisions with a stable bridge for other tools.
+<h1 align="center">NSFW Guard</h1>
 
-NSFW Guard reads an image once, applies strict byte and pixel limits, runs a
-pinned ONNX classifier locally, and turns its score into one of four explicit
-outcomes:
+<p align="center"><strong>Fast, local-first safety triage for image collections.</strong></p>
 
-- `ALLOW`: below the configured review threshold.
-- `REVIEW`: uncertain or unsupported for automatic handling.
-- `BLOCK`: at or above the configured block threshold.
-- `ERROR`: no safety claim could be produced.
+<p align="center">
+  <a href="README.de.md">Deutsch</a> |
+  <a href="START-HERE.md">Start here</a> |
+  <a href="docs/FOLDER_SCANNING.md">Folder scanning</a> |
+  <a href="docs/METRICS.md">Measured evidence</a>
+</p>
 
-It does not upload images, silently enable a GPU, or turn a model score into a
-claim of certainty.
+NSFW Guard scans JPEG, PNG, and WebP images locally and emits explicit `ALLOW`,
+`REVIEW`, `BLOCK`, or `ERROR` outcomes. It is designed for bounded folder pipelines,
+human review, automation, and integrations that must not silently turn a model score
+into a destructive action.
 
-## Quick start on Windows
+> A model score is evidence. It is not a verdict from physics.
+
+## Why this exists
+
+Most image-safety demos stop at a floating-point score. Real systems also need to
+answer harder questions: Which model produced it? Which policy mapped it to an
+outcome? Did any file fail? Was the run resource-bounded? Can a reviewer find the
+flagged originals without copying or modifying them?
+
+NSFW Guard packages those concerns as a small standalone product:
+
+- **Local-first:** image bytes are not uploaded by NSFW Guard.
+- **Non-destructive:** source images and their metadata are never changed.
+- **Fail-closed:** malformed or undecodable inputs become explicit `ERROR` records.
+- **Bounded:** input discovery, pending work, metric samples, pixels, and bytes have
+  limits rather than growing with an entire collection.
+- **Auditable:** JSONL results include model, policy, provider, timing, and run IDs.
+- **Reviewable:** `--links` creates lightweight `.url` pointers for `BLOCK`, `REVIEW`,
+  and `ERROR`, plus a light-mode local index.
+- **Honest about acceleration:** CPU preparation overlaps with serialized GPU session
+  calls. The current model batch is `1`; the CLI does not call concurrency "batching."
+
+NSFW Guard is alpha software. It supports triage and review workflows, not autonomous
+legal, employment, moderation, or law-enforcement decisions.
+
+## Fastest start on Windows
+
+Clone the repository or download and extract the GitHub ZIP, then run:
 
 ```powershell
-git clone https://github.com/IamAngusU/nsfw-guard.git
-cd nsfw-guard
-python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[cpu]"
-.venv\Scripts\nsfw-guard model install
-.venv\Scripts\nsfw-guard scan path\to\image.jpg
+python scripts\bootstrap.py --runtime cpu
+.venv\Scripts\nsfw-guard.exe folder "C:\Pictures" --provider cpu --links
 ```
 
-`Install.cmd` performs the setup locally. The default model is downloaded from
-a commit-pinned HTTPS URL and accepted only when its SHA-256 matches the
-published contract.
+For a broadly compatible Windows GPU path:
 
-## Why this is not just a boolean
+```powershell
+python scripts\bootstrap.py --runtime directml
+.venv\Scripts\nsfw-guard.exe folder "C:\Pictures" --provider directml --links
+```
 
-NSFW is contextual. A classifier can be wrong, thresholds depend on the input
-population, and an unavailable detector is not evidence that content is safe.
-The default `balanced-v1` policy therefore has an explicit review band:
+No virtual-environment activation is required. The equivalent double-click helpers
+are `Install.cmd`, `Install-DirectML.cmd`, and `Scan-Folder.cmd`.
+
+## Install the pre-release wheel
+
+```powershell
+py -m venv .venv
+.venv\Scripts\python.exe -m pip install "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a2/nsfw_guard-0.1.0a2-py3-none-any.whl"
+.venv\Scripts\nsfw-guard.exe model install
+.venv\Scripts\nsfw-guard.exe folder "C:\Pictures" --provider cpu --links
+```
+
+Linux and macOS use the same package and commands with `.venv/bin/` paths. GPU
+provider availability remains platform- and driver-dependent.
+
+## What a folder run creates
+
+By default, private evidence stays beside the scanned root:
 
 ```text
-score < 0.35          ALLOW
-0.35 <= score < 0.80 REVIEW
-score >= 0.80         BLOCK
+Pictures/
+  .nsfw-guard/
+    latest-summary.json
+    latest-flags.jsonl
+    OPEN-LATEST-RESULTS.url
+    runs/<run-id>/
+      all-results.jsonl
+      flags.jsonl
+      summary.json
+      status.json
+      metrics.svg
+      links/
+        BLOCK/*.url
+        REVIEW/*.url
+        ERROR/*.url
+        index.html
 ```
 
-These are operational defaults, not universal accuracy guarantees. Calibrate
-them against a lawful, representative dataset before production use.
+Deleting a `.url` file does not delete the image. Opening one navigates to the local
+original. Run without `--links` when no review collection is wanted. Use
+`--output-dir` when evidence should live somewhere else.
 
-## Python API
+## Smart parallelism
 
-```python
-from nsfw_guard import OnnxBackend, Scanner, get_policy
+`folder` chooses a conservative worker count from the provider, logical CPU count,
+and available memory. It currently caps automatic plans at four workers because that
+was the best measured throughput point on the reference system. `--workers N` is
+available for controlled experiments. `--memory-budget-mib` influences planning but
+is advisory; hard safety limits are enforced separately for individual image bytes
+and decoded pixels.
 
-backend = OnnxBackend(provider="cpu")
-scanner = Scanner(backend=backend, policy=get_policy("balanced-v1"))
-result = scanner.scan_path("image.jpg")
-print(result.verdict.value, result.scores)
+The pipeline is bounded end to end:
+
+```text
+deterministic discovery
+        |
+bounded pending futures
+        |
+read + decode + preprocess in parallel
+        |
+serialized DirectML/CUDA session.run
+        |
+ordered atomic JSONL evidence
 ```
 
-## Integration bridge
+This raised warm 200-file folder throughput by `1.92x` on CPU and `2.21x` on CUDA
+without claiming unsupported tensor batching.
 
-The bridge consumes one bounded JSON request per line and writes one JSON
-response per line. Logs never share stdout with protocol messages.
+## Measured performance
+
+Reference host: Windows, Intel Core i9-12900K, NVIDIA GeForce RTX 3080. Measurements
+were captured on 2026-09-13 with 200 deterministically selected, warm-cache PNGs and
+model batch size `1`. These are measurements, not promises for other files or hosts.
+
+| Provider | Workers | Images/s | End-to-end p50 | Peak process-tree RSS | Quality |
+|---|---:|---:|---:|---:|---|
+| CPU | 1 | 15.47 | 60.40 ms | 366.9 MiB | comparison |
+| CPU | auto = 4 | **29.72** | 127.60 ms | 453.5 MiB | headline eligible |
+| DirectML | 1 | 34.65 | 24.98 ms | 575.4 MiB | GPU load contaminated |
+| DirectML | auto = 4 | **82.37** | 39.95 ms | 609.7 MiB | GPU load contaminated |
+| CUDA | 1 | 35.98 | 23.84 ms | 994.2 MiB | comparison |
+| CUDA | auto = 4 | **79.68** | 38.60 ms | 928.9 MiB | headline eligible |
+
+Four workers optimize collection throughput, not single-file latency. DirectML had
+32% host-total GPU load before both measured runs and is deliberately excluded from
+headline evidence. Every new folder run also creates a bounded light-mode
+`metrics.svg` timeline for throughput, host CPU/GPU utilization, process RSS, and
+host-total GPU memory. Full records and methodology live in
+[`benchmarks/`](benchmarks/) and [`docs/METRICS.md`](docs/METRICS.md).
+
+![NSFW Guard performance history](docs/assets/performance-history.svg)
+
+## Outcomes and automation
+
+| Outcome | Meaning | Typical action |
+|---|---|---|
+| `ALLOW` | Policy threshold not crossed | Continue normal workflow |
+| `REVIEW` | Ambiguous or policy-sensitive evidence | Human review |
+| `BLOCK` | Block threshold crossed | Quarantine or reject in the caller |
+| `ERROR` | No trustworthy classification | Inspect or fail closed |
+
+The scanner itself does not quarantine or delete originals. Exit behavior is
+configurable with `--fail-on never|error|block|review`; the default is `error`.
+Machine integrations can use the JSON bridge described in
+[`docs/BRIDGE_PROTOCOL.md`](docs/BRIDGE_PROTOCOL.md).
+
+## Common commands
 
 ```powershell
-.venv\Scripts\nsfw-guard bridge --allow-root D:\incoming
+# One image
+nsfw-guard scan "C:\Pictures\sample.jpg" --provider cpu
+
+# Recursive collection with review links
+nsfw-guard folder "C:\Pictures" --provider directml --links
+
+# Inventory run that always returns success after writing evidence
+nsfw-guard folder "C:\Pictures" --provider cpu --fail-on never
+
+# Re-render the committed benchmark history
+nsfw-guard chart --history benchmarks --output docs/assets/performance-history.svg
+
+# Inspect or install the pinned model
+nsfw-guard model status
+nsfw-guard model install
 ```
 
-```json
-{"protocol":"safety-bridge/v1","id":"job-42","operation":"scan","artifact":{"kind":"file","path":"D:\\incoming\\image.jpg"},"policy":{"profile":"balanced-v1"}}
-```
+Run `nsfw-guard folder --help` for byte, pixel, worker, memory, and output controls.
 
-The process-neutral contract can later connect Polymorph, a web service, a
-desktop app, or another language without importing this package. No Polymorph
-integration is enabled in this initial release.
+## Trust and limits
 
-See [the bridge contract](docs/BRIDGE_PROTOCOL.md) and
-[integration guidance](docs/INTEGRATION.md).
+- The default ONNX model is pinned by URL and SHA-256 and licensed Apache-2.0.
+- Scores can be wrong, biased, or unsuitable for a particular policy or population.
+- `REVIEW` exists because uncertainty should stay visible.
+- Hardware metrics report their measurement scope. Windows WDDM may expose only
+  host-total GPU usage, not reliable per-process VRAM.
+- Advisory memory planning is not an operating-system sandbox or hard RSS quota.
+- No hosted service, telemetry collector, or active GitHub Actions workflow is
+  required. The CI workflow is only a disabled template.
 
-## Measured development-host performance
+See [`SECURITY.md`](SECURITY.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and
+[`docs/METRICS.md`](docs/METRICS.md) before production use.
 
-The reproducible 2026-09-13 baseline used Windows 11, an Intel i9-12900K,
-Python 3.11, a GeForce RTX 3080, and one synthetic 1280x720 JPEG. Each NSFW
-Guard result contains 40 measured runs after 5 warmups:
+## License
 
-| Backend | End-to-end p50 | End-to-end p95 | Throughput | Peak process RSS |
-| --- | ---: | ---: | ---: | ---: |
-| CPU, auto threads | 27.74 ms | 29.70 ms | 36.04 images/s | 148.6 MiB |
-| DirectML | 11.08 ms | 11.33 ms | 90.12 images/s | 371.1 MiB |
-| CUDA, 256 MiB arena | 10.96 ms | 12.26 ms | 90.23 images/s | 773.2 MiB |
-| NudeNet 3.4.2 CPU, external reference | 14.00 ms | 15.24 ms | 71.38 images/s | 131.7 MiB |
-
-NudeNet performs object detection while NSFW Guard's current model classifies
-the whole image, so this row is a runtime reference, not an accuracy ranking.
-CPU, CUDA, and DirectML produced the same verdict on the parity fixture; the
-largest absolute score difference from CPU was `1.1e-5`.
-
-This is a synthetic local measurement, not an SLA or an accuracy benchmark.
-Run `nsfw-guard benchmark` on the deployment host. Machine-readable history is
-kept in `benchmarks/`; detailed methodology is in
-[the performance notes](docs/PERFORMANCE.md).
-
-## Resource behavior
-
-- CPU is the default even when a GPU exists.
-- CUDA and DirectML must be requested explicitly.
-- CUDA requires `--cuda-arena-limit-mib`. This limits only the ONNX Runtime
-  CUDA arena, not total process or device memory.
-- On this host, 64, 128, 256, and 512 MiB CUDA arena settings all used an
-  approximate 270-276 MiB host-total VRAM delta. WDDM did not expose reliable
-  per-process VRAM, so no per-process value is claimed.
-- Compressed input defaults to 25 MiB maximum.
-- Decoded images default to 40 million pixels maximum.
-- Animated images return `REVIEW` until frame-aware scanning is implemented.
-- No source image or persistent content hash is retained by default.
-
-## Model and license choices
-
-The default model is a small Apache-2.0 `vit_tiny_patch16_384` classifier based
-on `Marqo/nsfw-image-detection-384`. The ONNX conversion revision and artifact
-digest are pinned. The model is not bundled in this repository.
-
-NudeNet v3 is useful as an external comparison, but its repository is
-AGPL-3.0. It is deliberately not copied, vendored, or installed as a dependency
-of this MIT project. Speed comparisons do not transfer ownership or licensing.
-An independently trained NSFW Guard model must first beat candidates on a
-lawful, age-safe held-out corpus; see [the own-model plan](docs/OWN_MODEL.md).
-
-## Scope and limitations
-
-This release scans static JPEG, PNG, and WebP images. It is not a detector for
-illegal content, age, consent, identity, or intent. It must not be used as the
-sole basis for reporting a person, making a legal conclusion, or taking an
-irreversible high-impact action. Video, animated frame scanning, text
-moderation, and independent real-world accuracy evaluation remain future work.
+NSFW Guard is available under the MIT License. Model and optional runtime components
+retain their own licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

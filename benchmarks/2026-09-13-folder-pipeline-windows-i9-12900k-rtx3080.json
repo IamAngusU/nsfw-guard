@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "measurement_date": "2026-09-13",
+  "benchmark_kind": "folder-pipeline",
+  "host": {
+    "os": "Windows 11",
+    "cpu": "Intel Core i9-12900K",
+    "logical_cpu_count": 24,
+    "ram_bytes": 34195775488,
+    "gpu": "NVIDIA GeForce RTX 3080",
+    "gpu_vram_mib": 10240,
+    "nvidia_driver": "610.62",
+    "python": "3.11.9"
+  },
+  "workload": {
+    "description": "first 200 deterministically sorted local PNG screenshots",
+    "corpus_included": false,
+    "accuracy_test": false,
+    "warm_filesystem_cache": true,
+    "transparent_images_use_dark_and_light_composites": true,
+    "model_batch_size": 1
+  },
+  "measurements": [
+    {
+      "provider": "cpu",
+      "workers": 1,
+      "throughput_images_per_second": 15.472754622087185,
+      "total_p50_ms": 60.3978,
+      "total_p95_ms": 95.8602,
+      "peak_process_rss_bytes": 384733184,
+      "headline_eligible": true
+    },
+    {
+      "provider": "cpu",
+      "workers": 4,
+      "throughput_images_per_second": 29.722661560312055,
+      "total_p50_ms": 127.60135,
+      "total_p95_ms": 186.5602,
+      "peak_process_rss_bytes": 475516928,
+      "cpu_utilization_at_start_percent": 10.6,
+      "headline_eligible": true
+    },
+    {
+      "provider": "directml",
+      "workers": 1,
+      "throughput_images_per_second": 34.65064457822161,
+      "total_p50_ms": 24.98205,
+      "peak_process_rss_bytes": 603361280,
+      "gpu_utilization_at_start_percent": 32,
+      "headline_eligible": false
+    },
+    {
+      "provider": "directml",
+      "workers": 4,
+      "throughput_images_per_second": 82.37403280529654,
+      "total_p50_ms": 39.94815,
+      "total_p95_ms": 91.3277,
+      "peak_process_rss_bytes": 639328256,
+      "gpu_utilization_at_start_percent": 32,
+      "headline_eligible": false
+    },
+    {
+      "provider": "cuda",
+      "workers": 1,
+      "throughput_images_per_second": 35.97949442262031,
+      "total_p50_ms": 23.8444,
+      "peak_process_rss_bytes": 1042497536,
+      "gpu_utilization_at_start_percent": 11,
+      "headline_eligible": true
+    },
+    {
+      "provider": "cuda",
+      "workers": 4,
+      "throughput_images_per_second": 79.68278284150624,
+      "total_p50_ms": 38.59595,
+      "total_p95_ms": 74.3083,
+      "peak_process_rss_bytes": 973987840,
+      "gpu_utilization_at_start_percent": 7,
+      "headline_eligible": true
+    }
+  ],
+  "observed_speedups": {
+    "cpu_workers_4_vs_1": 1.920953466493539,
+    "directml_workers_4_vs_1": 2.377273624554045,
+    "cuda_workers_4_vs_1": 2.214674347282077
+  },
+  "limitations": [
+    "The private corpus is not distributed, so these values are local operational evidence.",
+    "DirectML measurements started above the 20 percent GPU-idle threshold.",
+    "Per-file latency includes waiting for serialized shared-GPU inference.",
+    "Throughput and single-file latency optimize different objectives."
+  ]
+}

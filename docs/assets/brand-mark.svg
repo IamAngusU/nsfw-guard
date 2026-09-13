@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">NSFW Guard mark</title>
+  <desc id="desc">A teal local safety shield crossed by an amber evidence scan.</desc>
+  <rect x="4" y="4" width="152" height="152" rx="38" fill="#fff9e9" stroke="#16333b" stroke-width="8"/>
+  <path d="M80 25 130 43v35c0 31-19 51-50 60-31-9-50-29-50-60V43Z" fill="#087e8b"/>
+  <path d="M49 76c15-21 47-21 62 0-15 21-47 21-62 0Z" fill="#fffdf7"/>
+  <circle cx="80" cy="76" r="12" fill="#16333b"/>
+  <path d="M32 108h96" stroke="#db6d28" stroke-width="9" stroke-linecap="round"/>
+</svg>

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nsfw-guard"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Fast, local-first image safety decisions with an integration-safe bridge."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,7 +43,7 @@ dev = [
 ]
 
 [project.scripts]
-nsfw-guard = "nsfw_guard.cli:main"
+nsfw-guard = "nsfw_guard.entrypoint:main"
 
 [project.urls]
 Homepage = "https://github.com/IamAngusU/nsfw-guard"
@@ -59,6 +59,11 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/nsfw_guard/folder_scan.py" = ["E501"]
+"src/nsfw_guard/metrics_chart.py" = ["E501"]
+"src/nsfw_guard/run_chart.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"
