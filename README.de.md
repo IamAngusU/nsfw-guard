@@ -41,19 +41,28 @@ vollautomatische rechtliche, berufliche oder behoerdliche Entscheidungen.
 
 ## Mit eigenem Bild ausprobieren (Windows CMD oder PowerShell)
 
-Dieselbe Zeile funktioniert in CMD und PowerShell; Python muss nicht installiert
-sein. Sie laedt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1) und fragt nach einem Bild- oder
+Beide Befehle funktionieren ohne installiertes Python. Sie laden das
+[Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1) und fragen nach einem Bild- oder
 Ordnerpfad. **Vor allen weiteren Downloads** zeigt es Dateien, Quellen,
 ungefaehre Groessen und den privaten Speicherort. Mit `j`/`y` erlauben, sonst
 abbrechen. Klonen, Adminrechte und ein Bild-Upload durch NSFW Guard sind nicht
 noetig. Der Einzeiler selbst laedt und startet PowerShell-Code von GitHub; wer
 moechte, kann ihn vorher ansehen oder den Hash unten vergleichen.
 
-```powershell
-powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1')))"
+CMD:
+
+```bat
+powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1')))"
 ```
 
-Optionen **vor dem letzten doppelten Anfuehrungszeichen** ergaenzen: `-PlanOnly`
+PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1')))
+```
+
+In CMD Optionen **vor dem letzten doppelten Anfuehrungszeichen** ergaenzen; in
+PowerShell nach den schliessenden Klammern. `-PlanOnly`
 zeigt nur den Plan; `-Cleanup` entfernt nach dem Scan die private Test-Installation
 samt Modell und Berichten; `-CacheBase 'D:\ein-beschreibbarer-ordner'` legt sie auf
 D: ab. `-AcceptDownloads` ueberspringt die Rueckfrage ausdruecklich fuer
@@ -63,7 +72,15 @@ Astrals GitHub-Release und damit ein privates CPython 3.12 aus Astrals
 `python-build-standalone`. Weder globaler PATH noch Adminrechte sind noetig. Das
 veroeffentlichte Wheel `0.1.0a4` und das Modell sind hashgeprueft;
 PyPI-Drittanbieter-Abhaengigkeiten sind nicht per Hash fixiert. Der Ordner-Test
-scannt maximal 32 Bilder. Berichte enthalten Pfade und Scores; fuer einen eigenen
+scannt standardmaessig die **ersten 32 Bilder nach Dateinamen**, keine
+Zufallsstichprobe; `-MaxFiles 200` erweitert die Vorschau. Der Installer zeigt
+Review-Dateinamen, Scores und Schwellen. `REVIEW` bedeutet manuell pruefen, nicht
+bestaetigtes NSFW; harmlose Diagramme koennen Fehlalarme sein. Im gepinnten a4-
+Release wird sogar ein vollstaendig deckendes PNG mit Alpha-Kanal unnoetig doppelt
+berechnet. Das verursacht den Score nicht.
+Der Fix liegt auf `main`, noch nicht im gepinnten a4-Wheel. Mit
+`-Policy high-threshold-v1` gibt es weniger Reviews, aber auch ein hoeheres Risiko,
+relevante Bilder zu uebersehen. Berichte enthalten Pfade und Scores; fuer einen eigenen
 Cache einen privaten, nicht synchronisierten Ort waehlen. `main` steht derzeit bei
 `0.1.0a5.dev0`.
 
@@ -75,9 +92,9 @@ ausfuehren, `$trialScript` bei Bedarf ansehen und dann die letzte Zeile starten.
 Fuer einen fluechtigen Test `-Cleanup` an die letzte Zeile anhaengen.
 
 ```powershell
-$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1'
+$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1'
 $sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($trialScript))).Replace('-', '')
-if ($sha256 -ne '3F7B203A41BCFE1DDBBE7D7F5D7C29496290D251988400B4B1D2D5B912DA26A6') { throw 'Bootstrap SHA-256 mismatch.' }
+if ($sha256 -ne 'F73268B75438F74532C079FAA0634BF2B5B2DE13719C280C7BF0FE768CFA47FE') { throw 'Bootstrap SHA-256 mismatch.' }
 & ([scriptblock]::Create($trialScript))
 ```
 

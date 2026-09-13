@@ -48,18 +48,27 @@ legal, employment, moderation, or law-enforcement decisions.
 
 ## Try it on your own image (Windows CMD or PowerShell)
 
-Paste the same one line into CMD or PowerShell. Python is optional. It downloads and
-runs the [bootstrap script pinned to a specific commit](https://github.com/IamAngusU/nsfw-guard/blob/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1), then asks for an image or
+Paste either command below. Python is optional. It downloads and
+runs the [bootstrap script pinned to a specific commit](https://github.com/IamAngusU/nsfw-guard/blob/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1), then asks for an image or
 folder path. Before **any further download**, it lists the needed files, their sources,
 approximate sizes, and private storage path. Answer `y`/`j` to approve or anything
 else to stop. No clone, administrator rights, or image upload by NSFW Guard are needed.
 The bootstrap itself is remote PowerShell code; inspect it or verify its checksum below.
 
-```powershell
-powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1')))"
+CMD:
+
+```bat
+powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1')))"
 ```
 
-Add flags **before the final double quote**: `-PlanOnly` shows the plan without
+PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1')))
+```
+
+In CMD, add flags **before the final double quote**; in PowerShell, add them after
+the closing parentheses. `-PlanOnly` shows the plan without
 downloading; `-Cleanup` removes this trial's private environment, model, and reports
 after the scan; `-CacheBase 'D:\a-writable-folder'` selects a private location on D:.
 `-AcceptDownloads` explicitly skips the confirmation for automation. The script uses
@@ -68,7 +77,15 @@ downloads SHA-256-pinned `uv` from Astral's GitHub release and uses it to instal
 private CPython 3.12 from Astral's `python-build-standalone`; neither changes the
 global PATH or requires elevation. The released `0.1.0a4` wheel and pinned model are
 hash-checked; third-party dependencies from PyPI are not hash-locked. Folder trials
-scan at most 32 images. Reports contain paths and scores, so choose a non-synced
+scan the first 32 images in deterministic filename order by default, **not a random
+sample**; `-MaxFiles 200` expands the preview. The installer displays reviewed
+filenames, scores and thresholds. `REVIEW` means manual inspection, not confirmed
+NSFW; harmless diagrams can be false positives. In the pinned a4 release, even a
+fully opaque PNG with an alpha channel is unnecessarily evaluated twice. This does
+not cause the score; the fix is on `main`, not yet in the pinned a4 wheel. You can
+choose `-Policy high-threshold-v1` to reduce reviews, but this also increases the
+risk of missing relevant images. Reports contain paths
+and scores, so choose a non-synced
 `-CacheBase` if you override the default user cache. Current source on `main` is
 `0.1.0a5.dev0`.
 
@@ -80,9 +97,9 @@ This is the same pinned script, not a sandbox. Paste the first three lines, insp
 line for an ephemeral test.
 
 ```powershell
-$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1'
+$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/2090a99045729e4ad2c629ada74cf6efc6efd7a9/scripts/try.ps1'
 $sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($trialScript))).Replace('-', '')
-if ($sha256 -ne '3F7B203A41BCFE1DDBBE7D7F5D7C29496290D251988400B4B1D2D5B912DA26A6') { throw 'Bootstrap SHA-256 mismatch.' }
+if ($sha256 -ne 'F73268B75438F74532C079FAA0634BF2B5B2DE13719C280C7BF0FE768CFA47FE') { throw 'Bootstrap SHA-256 mismatch.' }
 & ([scriptblock]::Create($trialScript))
 ```
 
