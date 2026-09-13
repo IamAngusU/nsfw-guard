@@ -39,30 +39,33 @@ vollautomatische rechtliche, berufliche oder behoerdliche Entscheidungen.
 
 <a id="ohne-klonen-ausprobieren-windows-powershell"></a>
 
-## Mit eigenem Bild ausprobieren (Windows PowerShell)
+## Mit eigenem Bild ausprobieren (Windows CMD oder PowerShell)
 
-Mit installiertem Python 3.10+ diese eine Zeile in PowerShell oder Windows Terminal
-kopieren. Sie fuehrt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1)
-aus und fragt nach einem Bild- oder Ordnerpfad. Klonen, Adminrechte und ein
-Bild-Upload durch NSFW Guard sind nicht noetig. Der bequeme Einzeiler fuehrt
-entfernten PowerShell-Code aus; wer das zuvor pruefen moechte, kann den Quellcode
-ansehen und den Hash wie unten vergleichen.
+Dieselbe Zeile funktioniert in CMD und PowerShell; Python muss nicht installiert
+sein. Sie laedt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1) und fragt nach einem Bild- oder
+Ordnerpfad. **Vor allen weiteren Downloads** zeigt es Dateien, Quellen,
+ungefaehre Groessen und den privaten Speicherort. Mit `j`/`y` erlauben, sonst
+abbrechen. Klonen, Adminrechte und ein Bild-Upload durch NSFW Guard sind nicht
+noetig. Der Einzeiler selbst laedt und startet PowerShell-Code von GitHub; wer
+moechte, kann ihn vorher ansehen oder den Hash unten vergleichen.
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1')))
+powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1')))"
 ```
 
-Fuer sofortiges Entfernen der privaten Test-Installation samt Modell und Berichten
-`-Cleanup` an die Zeile anhaengen. Falls der Benutzer-Cache nicht beschreibbar ist,
-`-CacheBase 'D:\ein-beschreibbarer-ordner'` anhaengen. Das Skript
-prueft Leserechte und verlangt keine Adminrechte. Ein Ordner-Test scannt maximal
-32 Bilder; der vollstaendige Ordner-Scan steht weiter unten. Das veroeffentlichte
-Paket `0.1.0a4`, Abhaengigkeiten und Modell werden beim ersten Mal automatisch
-geladen. Vor der Installation prueft das Skript den fest gepinnten SHA-256 des
-Release-Wheels; Drittanbieter-Abhaengigkeiten sind nicht per Hash fixiert. Der
-aktuelle `main`-Quellstand ist `0.1.0a5.dev0`. Berichte enthalten
-Pfade und Scores. Wer `-CacheBase` setzt, sollte einen privaten, nicht
-synchronisierten Ort waehlen.
+Optionen **vor dem letzten doppelten Anfuehrungszeichen** ergaenzen: `-PlanOnly`
+zeigt nur den Plan; `-Cleanup` entfernt nach dem Scan die private Test-Installation
+samt Modell und Berichten; `-CacheBase 'D:\ein-beschreibbarer-ordner'` legt sie auf
+D: ab. `-AcceptDownloads` ueberspringt die Rueckfrage ausdruecklich fuer
+Automatisierung. Wenn ein unterstuetztes Python 3.10-3.12 vorhanden ist, wird es
+genutzt. Sonst laedt das Skript nach Zustimmung das SHA-256-gepruefte `uv` von
+Astrals GitHub-Release und damit ein privates CPython 3.12 aus Astrals
+`python-build-standalone`. Weder globaler PATH noch Adminrechte sind noetig. Das
+veroeffentlichte Wheel `0.1.0a4` und das Modell sind hashgeprueft;
+PyPI-Drittanbieter-Abhaengigkeiten sind nicht per Hash fixiert. Der Ordner-Test
+scannt maximal 32 Bilder. Berichte enthalten Pfade und Scores; fuer einen eigenen
+Cache einen privaten, nicht synchronisierten Ort waehlen. `main` steht derzeit bei
+`0.1.0a5.dev0`.
 
 <details>
 <summary>Vor dem Start SHA-256 pruefen</summary>
@@ -72,9 +75,9 @@ ausfuehren, `$trialScript` bei Bedarf ansehen und dann die letzte Zeile starten.
 Fuer einen fluechtigen Test `-Cleanup` an die letzte Zeile anhaengen.
 
 ```powershell
-$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1'
+$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1'
 $sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($trialScript))).Replace('-', '')
-if ($sha256 -ne '7E970A0A40C4FA4169E935462B1F88C35BCB53ECA886DA3A4FF5ED3AF3CF1022') { throw 'Bootstrap SHA-256 mismatch.' }
+if ($sha256 -ne '3F7B203A41BCFE1DDBBE7D7F5D7C29496290D251988400B4B1D2D5B912DA26A6') { throw 'Bootstrap SHA-256 mismatch.' }
 & ([scriptblock]::Create($trialScript))
 ```
 
@@ -85,7 +88,7 @@ der Wheel-Pruefung nicht weiterverwendet wird. Den **alten, markierten Cache ohn
 erneuten Scan** mit dem vorherigen, fest gepinnten Skript entfernen:
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'))) -CleanupOnly
+powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'))) -CleanupOnly"
 ```
 
 Aeltere Startskripte konnten den Cache in Windows-Dokumente legen; dieser Ordner

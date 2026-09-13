@@ -46,28 +46,31 @@ legal, employment, moderation, or law-enforcement decisions.
 
 <a id="try-it-without-cloning-windows-powershell"></a>
 
-## Try it on your own image (Windows PowerShell)
+## Try it on your own image (Windows CMD or PowerShell)
 
-With Python 3.10+ installed, paste this one line into PowerShell or Windows
-Terminal. It runs the [bootstrap script pinned to a specific commit](https://github.com/IamAngusU/nsfw-guard/blob/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1)
-and asks for an image or folder path. No clone, administrator rights, or image upload
-by NSFW Guard are needed. This convenience command executes remote PowerShell code;
-inspect the pinned source or verify its checksum below before executing it.
+Paste the same one line into CMD or PowerShell. Python is optional. It downloads and
+runs the [bootstrap script pinned to a specific commit](https://github.com/IamAngusU/nsfw-guard/blob/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1), then asks for an image or
+folder path. Before **any further download**, it lists the needed files, their sources,
+approximate sizes, and private storage path. Answer `y`/`j` to approve or anything
+else to stop. No clone, administrator rights, or image upload by NSFW Guard are needed.
+The bootstrap itself is remote PowerShell code; inspect it or verify its checksum below.
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1')))
+powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1')))"
 ```
 
-Append `-Cleanup` to the line to remove this trial's private environment, model,
-and reports after the scan. If the user cache is not writable, append
-`-CacheBase 'D:\a-writable-folder'`. The script checks input read access and
-never requests elevation. It scans at most 32 images in a folder; the full folder
-command below has no such trial limit. It automatically downloads the released
-`0.1.0a4` package, dependencies, and pinned model on first use. The script checks
-the released wheel's pinned SHA-256 before installation; third-party dependencies
-are not hash-locked. The current `main` source is `0.1.0a5.dev0`. Reports include
-paths and scores, so choose a private,
-non-synced location if you set `-CacheBase`.
+Add flags **before the final double quote**: `-PlanOnly` shows the plan without
+downloading; `-Cleanup` removes this trial's private environment, model, and reports
+after the scan; `-CacheBase 'D:\a-writable-folder'` selects a private location on D:.
+`-AcceptDownloads` explicitly skips the confirmation for automation. The script uses
+an installed, supported Python 3.10-3.12 when available. Otherwise, with consent it
+downloads SHA-256-pinned `uv` from Astral's GitHub release and uses it to install
+private CPython 3.12 from Astral's `python-build-standalone`; neither changes the
+global PATH or requires elevation. The released `0.1.0a4` wheel and pinned model are
+hash-checked; third-party dependencies from PyPI are not hash-locked. Folder trials
+scan at most 32 images. Reports contain paths and scores, so choose a non-synced
+`-CacheBase` if you override the default user cache. Current source on `main` is
+`0.1.0a5.dev0`.
 
 <details>
 <summary>Verify SHA-256 before running</summary>
@@ -77,9 +80,9 @@ This is the same pinned script, not a sandbox. Paste the first three lines, insp
 line for an ephemeral test.
 
 ```powershell
-$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/72d187206606f774b84179bccb0de7e90185065e/scripts/try.ps1'
+$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/4f4029bfb1fa3befdf2f59ecdee899c203a96119/scripts/try.ps1'
 $sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($trialScript))).Replace('-', '')
-if ($sha256 -ne '7E970A0A40C4FA4169E935462B1F88C35BCB53ECA886DA3A4FF5ED3AF3CF1022') { throw 'Bootstrap SHA-256 mismatch.' }
+if ($sha256 -ne '3F7B203A41BCFE1DDBBE7D7F5D7C29496290D251988400B4B1D2D5B912DA26A6') { throw 'Bootstrap SHA-256 mismatch.' }
 & ([scriptblock]::Create($trialScript))
 ```
 
@@ -90,7 +93,7 @@ wheel verification. To remove the **old, marked cache without another scan**, ru
 the earlier pinned launcher in cleanup-only mode:
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'))) -CleanupOnly
+powershell.exe -NoProfile -Command "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'))) -CleanupOnly"
 ```
 
 Older launchers could place that cache in Windows Documents, which may be
