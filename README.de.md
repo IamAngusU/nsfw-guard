@@ -37,6 +37,59 @@ gebaut.
 NSFW Guard ist Alpha-Software. Es ist fuer Triage und Reviews gedacht, nicht fuer
 vollautomatische rechtliche, berufliche oder behoerdliche Entscheidungen.
 
+## Ohne Klonen ausprobieren (Windows PowerShell)
+
+Mit installiertem Python 3.10+ den ganzen Block in PowerShell oder Windows Terminal
+kopieren. Danach einen Bild- oder Ordnerpfad eingeben. Die CPU-Version richtet sich
+beim ersten Mal isoliert ein und prueft lokal. Fuer sofortiges Entfernen danach
+`-Cleanup` an die letzte Zeile anhaengen: `Invoke-NsfwGuardTrial -Cleanup`.
+Ein Ordner-Test scannt hoechstens 32 Bilder; Berichte bleiben sonst unter
+`%USERPROFILE%\.cache\nsfw-guard\quick-try-v0.1.0a4\results`, nicht im Bildordner.
+
+```powershell
+function Invoke-NsfwGuardTrial {
+  param([switch]$Cleanup)
+  $target = (Read-Host 'Image or folder path / Bild- oder Ordnerpfad').Trim().Trim('"')
+  if (-not (Test-Path -LiteralPath $target)) { throw "Path not found: $target" }
+  $userHome = [IO.Path]::GetFullPath([Environment]::GetFolderPath('UserProfile')).TrimEnd('\')
+  $root = [IO.Path]::GetFullPath((Join-Path $userHome '.cache\nsfw-guard\quick-try-v0.1.0a4'))
+  if (-not $root.StartsWith("$userHome\", [StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe trial cache path.' }
+  $venv = Join-Path $root 'venv'
+  $python = Join-Path $venv 'Scripts\python.exe'
+  $guard = Join-Path $venv 'Scripts\nsfw-guard.exe'
+  $model = Join-Path $root 'model.onnx'
+  try {
+    if (-not (Test-Path -LiteralPath $python)) {
+      python -m venv $venv
+      if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $python)) { throw 'Python 3.10+ is required.' }
+    }
+    if (-not (Test-Path -LiteralPath $guard)) {
+      & $python -m pip install --no-cache-dir --disable-pip-version-check 'nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl'
+      if ($LASTEXITCODE -ne 0) { throw 'NSFW Guard installation failed.' }
+    }
+    if (Test-Path -LiteralPath $target -PathType Container) {
+      & $guard folder $target --provider cpu --model-path $model --max-files 32 --output-dir (Join-Path $root 'results') --links
+    } elseif (Test-Path -LiteralPath $target -PathType Leaf) {
+      & $guard scan $target --provider cpu --model-path $model
+    } else { throw "Neither a file nor a folder: $target" }
+  } finally {
+    if ($Cleanup -and (Test-Path -LiteralPath $root)) {
+      $cache = Get-Item -LiteralPath $root -Force
+      if (($cache.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Refusing to remove a linked cache.' }
+      Remove-Item -LiteralPath $root -Recurse -Force
+      Write-Host "Removed trial cache: $root"
+    }
+  }
+}
+Invoke-NsfwGuardTrial
+```
+
+Man muss nichts manuell klonen oder herunterladen. Auf einem neuen Rechner werden
+Paket, Abhaengigkeiten und das festgelegte Modell beim ersten Lauf automatisch
+geladen; dafuer ist Internet noetig. `-Cleanup` entfernt nur den privaten
+Test-Cache, nicht Python, andere Installationen oder Quellbilder. Bilder werden
+nicht hochgeladen. Der vollstaendige Ordner-Scan steht weiter unten.
+
 ## In zwei Befehlen starten
 
 Repository klonen oder das GitHub-ZIP entpacken:
@@ -58,7 +111,7 @@ Die virtuelle Umgebung muss nicht aktiviert werden. Alternativ koennen
 
 ## Ergebnisse
 
-Ohne `--output-root` entsteht im geprueften Ordner `.nsfw-guard`. Jeder Lauf besitzt
+Ohne `--output-dir` entsteht im geprueften Ordner `.nsfw-guard`. Jeder Lauf besitzt
 eine eigene ID und schreibt atomar:
 
 - `all-results.jsonl` mit jedem Ergebnis
