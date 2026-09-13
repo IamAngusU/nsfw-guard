@@ -6,7 +6,8 @@ param(
   [string]$CacheBase,
   [switch]$AcceptDownloads,
   [switch]$PlanOnly,
-  [switch]$PortablePython
+  [switch]$PortablePython,
+  [ValidateRange(1, 100000)][int]$MaxFiles = 32
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +20,74 @@ $modelUrl = 'https://huggingface.co/KanariKanaru/nsfw-image-detection-384-onnx/r
 $modelSha256 = 'E9350E576608AFE4B57A089FFEB0EBAFA1389CDCEA4882DD61DF28C45F1C24D2'
 $uvVersion = '0.12.13'
 $pythonBuildSource = 'https://github.com/astral-sh/python-build-standalone/releases/download'
+
+function Write-Section([string]$Title) {
+  Write-Host "`n  $Title" -ForegroundColor Cyan
+  Write-Host ('  ' + ('-' * $Title.Length)) -ForegroundColor DarkGray
+}
+
+function Write-Detail([string]$Label, [string]$Value) {
+  Write-Host ("  {0,-17} {1}" -f ($Label + ':'), $Value)
+}
+
+function Write-Ready([string]$Message) {
+  Write-Host "  [OK] $Message" -ForegroundColor Green
+}
+
+function Get-Sha256([string]$Path) {
+  $stream = [IO.File]::OpenRead($Path)
+  $hasher = [Security.Cryptography.SHA256]::Create()
+  try { return ([BitConverter]::ToString($hasher.ComputeHash($stream))).Replace('-', '') }
+  finally { $hasher.Dispose(); $stream.Dispose() }
+}
+
+function Show-ScanResult($Result, [bool]$IsFolder) {
+  Write-Section 'RESULT / ERGEBNIS'
+  if ($IsFolder) {
+    $counts = $Result.counts
+    $discovery = $Result.discovery
+    Write-Detail 'Images / Bilder' ("{0} of {1} / von {1}" -f $Result.scanned_count, $discovery.supported_candidate_count)
+    if ($discovery.selection_truncated) {
+      Write-Host "  Preview only: first $($discovery.selected_count) paths in name order (-MaxFiles)." -ForegroundColor Yellow
+      Write-Host '  Nur Vorschau: erste Pfade nach Namen, keine Zufallsstichprobe.' -ForegroundColor DarkGray
+    }
+    Write-Detail 'Verdicts' ("ALLOW {0}  REVIEW {1}  BLOCK {2}  ERROR {3}" -f [int]$counts.ALLOW, [int]$counts.REVIEW, [int]$counts.BLOCK, [int]$counts.ERROR)
+    Write-Detail 'Speed / Tempo' (([double]$Result.throughput_images_per_second).ToString('0.0', [Globalization.CultureInfo]::InvariantCulture) + ' images/s')
+    if ($counts.REVIEW -or $counts.BLOCK -or $counts.ERROR) {
+      Write-Host '  REVIEW means check manually; it does not confirm NSFW content.' -ForegroundColor Yellow
+      Write-Host '  REVIEW bedeutet manuell pruefen, nicht bestaetigtes NSFW.' -ForegroundColor DarkGray
+      $shownThreshold = $false
+      $transparentFlag = $false
+      foreach ($line in (Get-Content -LiteralPath $Result.reports.flags -TotalCount 8 -ErrorAction Stop)) {
+        $flag = $line | ConvertFrom-Json
+        if (-not $shownThreshold -and $flag.policy) {
+          $reviewAt = ([double]$flag.policy.review_threshold).ToString('0.000', [Globalization.CultureInfo]::InvariantCulture)
+          $blockAt = ([double]$flag.policy.block_threshold).ToString('0.000', [Globalization.CultureInfo]::InvariantCulture)
+          Write-Detail 'Thresholds' "REVIEW >= $reviewAt; BLOCK >= $blockAt"
+          $shownThreshold = $true
+        }
+        if ($flag.reason_codes -contains 'transparent_image_scanned_on_dark_and_light_backgrounds') { $transparentFlag = $true }
+        $score = if ($flag.scores) { [double]$flag.scores.nsfw } else { $null }
+        $scoreText = if ($null -ne $score) { $score.ToString('0.000', [Globalization.CultureInfo]::InvariantCulture) } else { 'n/a' }
+        Write-Detail $flag.verdict ("score $scoreText  $($flag.relative_path)")
+      }
+      if ([int]$Result.flagged_count -gt 8) { Write-Detail 'More / Weitere' 'See flags.jsonl / siehe flags.jsonl' }
+      if ($transparentFlag) { Write-Host '  Transparent images: dark + light background; the higher score wins.' -ForegroundColor DarkGray }
+      Write-Host '  Scores are uncalibrated model outputs, not probabilities.' -ForegroundColor DarkGray
+    }
+    if (-not $Cleanup) {
+      Write-Detail 'Review links' $Result.reports.links_index
+      Write-Detail 'JSON report' $Result.reports.summary
+    }
+  } else {
+    $item = $Result.result
+    $scoreText = if ($item.scores) { ([double]$item.scores.nsfw).ToString('0.000', [Globalization.CultureInfo]::InvariantCulture) } else { 'n/a' }
+    Write-Detail 'Verdict' $item.verdict
+    Write-Detail 'Model score' $scoreText
+    Write-Host '  Score is not a calibrated probability; REVIEW means check manually.' -ForegroundColor DarkGray
+  }
+  if ($Cleanup) { Write-Host '  Reports and private test installation will be removed now.' -ForegroundColor DarkGray }
+}
 
 function Find-SupportedPython {
   $candidates = @(
@@ -87,6 +156,9 @@ function Remove-TrialCache([string]$Base, [string]$Root) {
 }
 
 $userHome = [IO.Path]::GetFullPath([Environment]::GetFolderPath('UserProfile'))
+Write-Host ''
+Write-Host '  NSFW GUARD  /  QUICK TRY' -ForegroundColor Cyan
+Write-Host '  Local image triage. No admin rights or global install.' -ForegroundColor DarkGray
 if ($CleanupOnly) {
   $base = if ($CacheBase) { [IO.Path]::GetFullPath($CacheBase) } else { Join-Path $userHome '.cache' }
   $root = [IO.Path]::GetFullPath((Join-Path $base (Join-Path 'nsfw-guard' $cacheName)))
@@ -94,7 +166,10 @@ if ($CleanupOnly) {
   return
 }
 
-if (-not $InputPath) { $InputPath = Read-Host 'Image or folder path / Bild- oder Ordnerpfad' }
+if (-not $InputPath) {
+  Write-Section 'INPUT / EINGABE'
+  $InputPath = Read-Host '  Image or folder path / Bild- oder Ordnerpfad'
+}
 $InputPath = $InputPath.Trim().Trim('"')
 try {
   $inputItem = Get-Item -LiteralPath $InputPath -ErrorAction Stop
@@ -179,36 +254,38 @@ $uvRelease = if ($usePortable) { Get-UvRelease } else { $null }
 $needsGuard = $needsEnvironment -or -not (Test-Path -LiteralPath $guard)
 $needsModel = -not (Test-Path -LiteralPath $model)
 if (-not $needsModel) {
-  $needsModel = ((Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash -ne $modelSha256)
+  $needsModel = ((Get-Sha256 $model) -ne $modelSha256)
 }
 $needsDownloads = $usePortable -or $needsGuard -or $needsModel
 
-Write-Host "`nDownload plan / Download-Plan:"
+Write-Section 'DOWNLOAD PLAN / DOWNLOAD-PLAN'
 if ($usePortable) {
   if (-not (Test-Path -LiteralPath $uv)) {
-    Write-Host "- uv $uvVersion ($($uvRelease.Name), about 18 MB): $($uvRelease.Url)"
-    Write-Host "  SHA-256: $($uvRelease.Sha256)"
+    Write-Detail "uv $uvVersion" "about 18 MB | $($uvRelease.Url)"
+    Write-Detail 'SHA-256' $uvRelease.Sha256
   }
-  Write-Host "- CPython 3.12 (about 20-30 MB if not cached): $pythonBuildSource"
+  Write-Detail 'CPython 3.12' "about 20-30 MB | $pythonBuildSource"
 }
 if ($needsGuard) {
-  Write-Host "- NSFW Guard 0.1.0a4 wheel (71 KB): $wheelUrl"
-  Write-Host "  SHA-256: $wheelSha256"
-  Write-Host '- CPU dependencies (platform-dependent, about 35 MB): https://pypi.org/simple/'
+  Write-Detail 'Guard 0.1.0a4' "71 KB | $wheelUrl"
+  Write-Detail 'SHA-256' $wheelSha256
+  Write-Detail 'CPU packages' 'about 35 MB | https://pypi.org/simple/'
 }
 if ($needsModel) {
-  Write-Host "- ONNX model (22.5 MB): $modelUrl"
-  Write-Host "  SHA-256: $modelSha256 (checked by NSFW Guard)"
+  Write-Detail 'ONNX model' "22.5 MB | $modelUrl"
+  Write-Detail 'SHA-256' "$modelSha256 (verified)"
 }
-if (-not $needsDownloads) { Write-Host '- None / Keine; private cache is ready.' }
-Write-Host "Private storage / Privater Speicherort: $root"
-Write-Host 'No admin rights, global Python install, or PATH change. -Cleanup removes this private trial cache.'
+if (-not $needsDownloads) { Write-Ready 'No downloads needed / Keine Downloads noetig.' }
+Write-Detail 'Private cache' $root
+Write-Detail 'Input / Eingabe' $inputItem.FullName
+if ($inputItem.PSIsContainer) { Write-Detail 'Preview limit' "$MaxFiles Bilder / images (-MaxFiles)" }
+Write-Host '  No PATH change. -Cleanup removes only this marked private trial cache.' -ForegroundColor DarkGray
 if ($PlanOnly) {
   if ($rootWasCreated) { Remove-TrialCache $base $root }
   return
 }
 if ($needsDownloads -and -not $AcceptDownloads) {
-  $answer = [string](Read-Host 'Allow all listed downloads? [y/yes/j/ja] / Alle Downloads erlauben? (default: no)')
+  $answer = [string](Read-Host '  Allow these downloads? / Downloads erlauben? [y/j; default: no]')
   if ($answer.Trim().ToLowerInvariant() -notin @('y', 'yes', 'j', 'ja')) {
     if ($rootWasCreated) { Remove-TrialCache $base $root }
     throw 'Downloads declined; no download started / Downloads abgelehnt; nichts geladen.'
@@ -216,14 +293,16 @@ if ($needsDownloads -and -not $AcceptDownloads) {
 }
 
 try {
+  Write-Section 'SETUP / EINRICHTUNG'
   if ($needsEnvironment) {
     if ($usePortable) {
       if (-not (Test-Path -LiteralPath $uv)) {
+        Write-Detail 'Installing' 'verified uv in private cache'
         $archive = Join-Path $root $uvRelease.Name
         Assert-PlainPath $archive
         try {
           Invoke-WebRequest -Uri $uvRelease.Url -OutFile $archive -UseBasicParsing
-          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $uvRelease.Sha256) {
+          if ((Get-Sha256 $archive) -ne $uvRelease.Sha256) {
             throw 'Portable uv archive failed SHA-256 verification; refusing to run it.'
           }
           Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $root 'tools') -Force
@@ -244,12 +323,14 @@ try {
         $env:UV_INDEX_URL = $null
         $env:UV_EXTRA_INDEX_URL = $null
         $env:UV_FIND_LINKS = $null
-        & $uv --no-config --cache-dir $uvCache python install 3.12 --install-dir $managedPython --no-bin --no-registry --mirror $pythonBuildSource
+        Write-Detail 'Installing' 'private CPython 3.12'
+        & $uv --quiet --no-config --cache-dir $uvCache python install 3.12 --install-dir $managedPython --no-bin --no-registry --mirror $pythonBuildSource
         if ($LASTEXITCODE -ne 0) { throw 'Private Python installation failed.' }
-        & $uv --no-config --cache-dir $uvCache venv --python 3.12 --managed-python --no-python-downloads $venv
+        & $uv --quiet --no-config --cache-dir $uvCache venv --python 3.12 --managed-python --no-python-downloads $venv
         if ($LASTEXITCODE -ne 0) { throw 'Private Python environment creation failed.' }
         if (-not (Test-Path -LiteralPath $python)) { throw 'Private Python executable is missing.' }
-        & $uv --no-config --cache-dir $uvCache pip install --python $python --default-index 'https://pypi.org/simple' --only-binary ':all:' $wheel
+        Write-Detail 'Installing' 'NSFW Guard and CPU dependencies'
+        & $uv --quiet --no-config --cache-dir $uvCache pip install --python $python --default-index 'https://pypi.org/simple' --only-binary ':all:' $wheel
         if ($LASTEXITCODE -ne 0) { throw 'Package installation failed; check the uv output and network.' }
       } finally {
         foreach ($key in $savedUvEnv.Keys) {
@@ -257,6 +338,7 @@ try {
         }
       }
     } else {
+      Write-Detail 'Creating' 'private Python environment'
       $pythonCommand = $systemPython.Name
       $launcherFlags = @($systemPython.Flags)
       & $pythonCommand @launcherFlags -m venv $venv
@@ -266,17 +348,28 @@ try {
     }
   }
   if ($needsGuard -and -not $usePortable) {
-    & $python -m pip --isolated install --no-cache-dir --disable-pip-version-check --index-url 'https://pypi.org/simple' --only-binary ':all:' $wheel
+    Write-Detail 'Installing' 'NSFW Guard and CPU dependencies'
+    & $python -m pip --isolated install --quiet --no-cache-dir --disable-pip-version-check --index-url 'https://pypi.org/simple' --only-binary ':all:' $wheel
     if ($LASTEXITCODE -ne 0) { throw 'Package installation failed; check the pip output, network and free space.' }
   }
   if (-not (Test-Path -LiteralPath $guard)) { throw 'Package installation did not create the CLI.' }
+  if ($needsModel) {
+    Write-Detail 'Installing' 'verified ONNX model'
+    & $guard model install --path $model | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Model installation or SHA-256 verification failed.' }
+  }
+  Write-Ready 'Private runtime and model are ready.'
   Assert-PlainPath $root
+  Write-Section 'SCAN / PRUEFUNG'
   if ($inputItem.PSIsContainer) {
-    & $guard folder $inputItem.FullName --provider cpu --model-path $model --max-files 32 --output-dir (Join-Path $root 'results') --links
+    $scanOutput = & $guard folder $inputItem.FullName --provider cpu --model-path $model --no-download --max-files $MaxFiles --progress-every 0 --output-dir (Join-Path $root 'results') --links --json
   } else {
-    & $guard scan $inputItem.FullName --provider cpu --model-path $model
+    $scanOutput = & $guard scan $inputItem.FullName --provider cpu --model-path $model --no-download --json
   }
   $scanExit = $LASTEXITCODE
+  if ($scanExit -notin @(0, 10, 20)) { throw "Scan failed (exit code $scanExit); check the error above." }
+  $scanResult = ($scanOutput -join "`n") | ConvertFrom-Json
+  Show-ScanResult $scanResult ([bool]$inputItem.PSIsContainer)
 } finally {
   if ($Cleanup) {
     try {
@@ -286,4 +379,3 @@ try {
     }
   }
 }
-if ($scanExit -notin @(0, 10, 20)) { throw "Scan failed (exit code $scanExit); check the output above." }
