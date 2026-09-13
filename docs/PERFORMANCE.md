@@ -74,3 +74,23 @@ Versioned results live in `benchmarks/`. Keep raw local reports in
 `.artifacts/`; do not commit sensitive inputs or claim that synthetic speed
 tests establish model quality. Future charts should consume the versioned JSON
 records rather than scrape rounded README values.
+
+## Measured real-folder baseline, 2026-09-13
+
+One Windows 11 host, i9-12900K, RTX 3080, 32 GiB RAM, 200 SHA-256-unique real
+screenshots, warm filesystem cache, four workers, model batch size 1:
+
+| Provider | Throughput | Wall time | Peak RSS | Observed host VRAM delta |
+| --- | ---: | ---: | ---: | ---: |
+| CPU, auto-tuned 4 threads | 24.89 images/s | 8.04 s | 450.2 MiB | not applicable |
+| DirectML | 84.07 images/s | 2.38 s | 612.2 MiB | about 103 MiB |
+| CUDA, 768 MiB arena limit | 83.87 images/s | 2.38 s | 925.9 MiB | about 312 MiB |
+
+All three completed 200/200 with zero scan errors. DirectML and CUDA started at 8 percent GPU
+utilization; CPU started at 8.5 percent host CPU. These are local operational measurements, not a
+speed covenant with every laptop ever manufactured. The private corpus is not published and this is
+not an accuracy benchmark.
+
+The CPU auto-thread fix improved this exact workload from a contaminated 5.66 images/s to 24.89
+images/s. Full evidence lives in
+[`benchmarks/2026-09-13-real-screenshots-game-off.json`](benchmarks/2026-09-13-real-screenshots-game-off.json).

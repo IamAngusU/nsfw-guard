@@ -115,9 +115,9 @@ def render_run_metrics_svg(
             100.0,
         ),
         PanelSpec(
-            "Scanner resident memory",
+            "Runtime resident memory",
             "MiB",
-            (SeriesSpec("process_rss_mib", "Process RSS", "#b42318"),),
+            (SeriesSpec("process_rss_mib", "Observed RSS", "#b42318"),),
         ),
         PanelSpec(
             "GPU memory witness",

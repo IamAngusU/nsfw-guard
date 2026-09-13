@@ -1,0 +1,31 @@
+# Copy to vision.toml, review the adapter, then enable it.
+schema_version = 1
+
+[privacy]
+mode = "local-only"
+acknowledge_remote_image_disclosure = false
+sanitize_remote_images = true
+remote_max_edge = 1280
+remote_jpeg_quality = 85
+max_upload_mib = 8
+max_response_kib = 256
+
+[[models]]
+id = "local-example"
+adapter = "command"
+enabled = false
+trusted = false
+command = ["{python}", "-m", "nsfw_guard.mock_vision_adapter"]
+tasks = ["describe", "classify"]
+when = ["REVIEW", "BLOCK"]
+timeout_seconds = 30
+
+[[models]]
+id = "remote-example"
+adapter = "http-json"
+enabled = false
+url = "https://vision.example.invalid/v1/analyze"
+auth_env = "VISION_API_TOKEN"
+tasks = ["describe"]
+when = ["ALL"]
+timeout_seconds = 60

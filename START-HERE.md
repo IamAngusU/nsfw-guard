@@ -98,4 +98,17 @@ Do not compare cold-cache and warm-cache runs as if they were equivalent. The su
 records starting CPU/GPU load and marks contaminated headline evidence.
 
 Next: [`docs/FOLDER_SCANNING.md`](docs/FOLDER_SCANNING.md) and
-[`docs/METRICS.md`](docs/METRICS.md).
+[`docs/METRICS.md`](docs/METRICS.md). Optional model adapters are documented in
+[`docs/VISION_ADAPTERS.md`](docs/VISION_ADAPTERS.md).
+
+## Use it from Polymorph
+
+With both console commands installed, no integration package is required:
+
+```powershell
+polymorph guard --doctor
+polymorph guard C:\images\sample.jpg
+```
+
+CPU is deliberately the default. Select `--provider directml` or CUDA with an explicit
+`--cuda-arena-limit-mib` when consuming GPU memory is actually intended.

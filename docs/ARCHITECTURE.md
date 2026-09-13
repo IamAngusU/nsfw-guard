@@ -15,6 +15,7 @@ platform.
 | link collection | non-destructive reviewer navigation to original files |
 | bridge | line-oriented machine protocol for future products such as Polymorph |
 | chart | dependency-free rendering of sanitized benchmark history |
+| vision adapters | optional persistent local or HTTPS model enrichment |
 
 ## Trust boundaries
 
@@ -35,6 +36,9 @@ remain independently installable while another product can consume its decisions
 Polymorph is not a runtime dependency. A future hub can launch the bridge as an
 external capability, negotiate protocol versions, and preserve NSFW Guard's resource
 and privacy boundaries without importing private implementation details.
+
+Vision adapters use a second versioned boundary and produce separate evidence. This
+keeps third-party captions and labels from silently changing the pinned safety policy.
 
 See [`BRIDGE_PROTOCOL.md`](BRIDGE_PROTOCOL.md) for the wire contract.
 
@@ -57,3 +61,4 @@ recreated from evidence; they are not the source of truth.
 - no assertion that advisory memory planning is a hard OS quota
 - no assertion that thread concurrency is tensor batching
 - no active GitHub Actions workflow
+- no E2EE claim for a conventional provider that must decrypt pixels for inference

@@ -90,6 +90,23 @@ class FolderScanOutcome:
     exit_code: int
 
 
+def recommend_inference_threads(
+    *,
+    provider: str,
+    requested_threads: int,
+    requested_workers: int | None,
+    physical_cpu_count: int | None,
+) -> int:
+    """Bound CPU intra-op threads so folder workers do not oversubscribe the host."""
+    if requested_threads < 0:
+        raise InvalidInputError("Thread count must be zero or greater.")
+    if requested_threads or provider != "cpu":
+        return requested_threads
+    physical = max(1, physical_cpu_count or 1)
+    workers = requested_workers or min(4, physical)
+    return max(1, min(4, physical // workers))
+
+
 class BoundedMetric:
     def __init__(self, *, capacity: int = 10_000, seed: int = 0) -> None:
         if capacity < 1:
@@ -446,9 +463,15 @@ def scan_folder(config: FolderScanConfig) -> FolderScanOutcome:
 
     host = _host_evidence()
     process = psutil.Process()
+    effective_threads = recommend_inference_threads(
+        provider=config.provider,
+        requested_threads=config.threads,
+        requested_workers=config.requested_workers,
+        physical_cpu_count=int(host["physical_cpu_count"]),
+    )
     backend = OnnxBackend(
         provider=config.provider,
-        threads=config.threads,
+        threads=effective_threads,
         cuda_arena_limit_mib=config.cuda_arena_limit_mib,
         model_path=config.model_path,
         allow_download=config.allow_download,
@@ -685,6 +708,12 @@ def scan_folder(config: FolderScanConfig) -> FolderScanOutcome:
         "throughput_images_per_second": completed_count / elapsed if elapsed else None,
         "policy": config.policy_name,
         "provider": config.provider,
+        "thread_plan": {
+            "requested_threads": config.threads,
+            "effective_threads": effective_threads,
+            "auto_tuned": config.provider == "cpu" and config.threads == 0,
+            "strategy": "bounded_physical_cores_per_folder_worker",
+        },
         "worker_plan": plan.to_dict(),
         "measurement_quality": {
             "headline_eligible": not environment_warnings,
@@ -760,7 +789,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--policy", choices=POLICY_NAMES, default="balanced-v1")
     parser.add_argument("--provider", choices=PROVIDER_NAMES, default="cpu")
-    parser.add_argument("--threads", type=int, default=0)
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=0,
+        help="Inference threads; 0 auto-tunes bounded CPU folder runs.",
+    )
     parser.add_argument("--cuda-arena-limit-mib", type=int)
     parser.add_argument("--model-path", type=Path)
     parser.add_argument("--no-download", action="store_true")

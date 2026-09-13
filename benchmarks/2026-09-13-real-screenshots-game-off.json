@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "measurement_date": "2026-09-13",
+  "benchmark_kind": "folder-pipeline-real-world",
+  "release_candidate": "0.1.0a3",
+  "host": {
+    "os": "Windows 11",
+    "cpu": "Intel Core i9-12900K",
+    "physical_cpu_count": 16,
+    "logical_cpu_count": 24,
+    "ram_bytes": 34195775488,
+    "gpu": "NVIDIA GeForce RTX 3080",
+    "gpu_vram_mib": 10240,
+    "nvidia_driver": "610.62",
+    "python": "3.11.9"
+  },
+  "workload": {
+    "description": "200 deterministically selected, SHA-256-unique local screenshots",
+    "corpus_included": false,
+    "accuracy_test": false,
+    "input_bytes": 40216013,
+    "warm_filesystem_cache": true,
+    "transparent_images_use_dark_and_light_composites": true,
+    "model_batch_size": 1,
+    "policy": "balanced-v1"
+  },
+  "measurements": [
+    {
+      "provider": "cpu",
+      "runtime_version": "1.30.0",
+      "workers": 4,
+      "threads_requested": 0,
+      "threads_effective": 4,
+      "memory_budget_mib": 1024,
+      "throughput_images_per_second": 24.88994103647617,
+      "elapsed_seconds": 8.035374600000068,
+      "total_p50_ms": 152.56619999999998,
+      "total_p95_ms": 213.525,
+      "peak_process_rss_bytes": 472072192,
+      "cpu_utilization_at_start_percent": 8.5,
+      "headline_eligible": true
+    },
+    {
+      "provider": "directml",
+      "runtime_version": "1.24.4",
+      "workers": 4,
+      "threads_effective": 1,
+      "memory_budget_mib": 1024,
+      "throughput_images_per_second": 84.07458037431573,
+      "elapsed_seconds": 2.3788402999998652,
+      "total_p50_ms": 39.188,
+      "total_p95_ms": 86.5297,
+      "peak_process_rss_bytes": 641970176,
+      "gpu_utilization_at_start_percent": 8,
+      "gpu_memory_start_mib": 1967,
+      "gpu_memory_peak_mib": 2070,
+      "approximate_host_total_vram_delta_mib": 103,
+      "headline_eligible": true
+    },
+    {
+      "provider": "cuda",
+      "runtime_version": "1.30.0",
+      "workers": 4,
+      "threads_effective": 1,
+      "cuda_arena_limit_mib": 768,
+      "memory_budget_mib": 1536,
+      "throughput_images_per_second": 83.87016529383244,
+      "elapsed_seconds": 2.384638200000154,
+      "total_p50_ms": 38.64985,
+      "total_p95_ms": 79.6429,
+      "peak_process_rss_bytes": 970891264,
+      "gpu_utilization_at_start_percent": 8,
+      "gpu_memory_start_mib": 1837,
+      "gpu_memory_peak_mib": 2149,
+      "approximate_host_total_vram_delta_mib": 312,
+      "headline_eligible": true
+    }
+  ],
+  "observed_speedups": {
+    "cpu_auto_tuning_vs_oversubscribed": 4.3943,
+    "directml_vs_cpu": 3.3779,
+    "cuda_vs_cpu": 3.3696
+  },
+  "limitations": [
+    "The private screenshot corpus is not distributed, so these values are local operational evidence.",
+    "This is a throughput and resource benchmark, not an accuracy benchmark.",
+    "GPU memory is sampled host-total nvidia-smi evidence, not per-process attribution.",
+    "DirectML 1.24.4 and CUDA 1.30.0 are separate ONNX Runtime environments.",
+    "Warm-cache throughput is not cold first-image latency."
+  ]
+}

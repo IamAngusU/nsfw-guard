@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0a3 - 2026-09-13
+
+- Add versioned persistent command and HTTP vision adapters.
+- Add explicit local-only and remote-TLS privacy modes with disclosure acknowledgement.
+- Sanitize and bound remote image payloads and bound all adapter responses.
+- Add streaming outcome routing and atomic vision JSONL evidence.
+- Record adapter process-tree RSS and bounded CPU/GPU timelines with an automatic SVG.
+- Add `vision init`, `vision doctor`, `vision enrich`, an example adapter, and user docs.
+- Auto-tune CPU folder inference threads to avoid nested ONNX worker oversubscription.
+- Publish the permissive `safety-bridge/v1` contract and zero-glue Polymorph integration.
+- License releases from a3 under AGPL-3.0-only while preserving the published a1 MIT grant.
+
 ## 0.1.0a2 - 2026-09-13
 
 - Add bounded per-run CPU, GPU, throughput, and RSS timelines with automatic SVG evidence.
@@ -14,7 +26,7 @@
 - Added measurement-quality warnings for busy CPU and GPU environments.
 - Increased the verified test suite from 22 to 28 tests.
 
-## 0.1.0a1 - Unreleased
+## 0.1.0a1 - 2026-09-13
 
 - Added a local ONNX image classifier with CPU-first execution.
 - Added commit-pinned, SHA-256-verified model installation.

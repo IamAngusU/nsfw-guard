@@ -18,6 +18,8 @@ class Measurement:
     total_p50_ms: float
     throughput: float
     peak_rss_mib: float
+    sample_id: str = ""
+    workload: str = "single image"
 
 
 def load_measurements(history: Path) -> list[Measurement]:
@@ -33,6 +35,30 @@ def load_measurements(history: Path) -> list[Measurement]:
                     total_p50_ms=float(record["total_p50_ms"]),
                     throughput=float(record["throughput_images_per_second"]),
                     peak_rss_mib=float(record["peak_process_rss_bytes"]) / (1024 * 1024),
+                    sample_id=path.stem,
+                    workload="single image",
+                )
+            )
+        folder_records: dict[str, dict[str, Any]] = {}
+        for record in data.get("measurements", []):
+            provider = str(record["provider"])
+            previous = folder_records.get(provider)
+            if previous is None or float(record["throughput_images_per_second"]) > float(
+                previous["throughput_images_per_second"]
+            ):
+                folder_records[provider] = record
+        benchmark_kind = str(data.get("benchmark_kind", ""))
+        workload = "real folder" if benchmark_kind.endswith("real-world") else "folder fixture"
+        for provider, record in sorted(folder_records.items()):
+            measurements.append(
+                Measurement(
+                    date=date,
+                    provider=provider,
+                    total_p50_ms=float(record["total_p50_ms"]),
+                    throughput=float(record["throughput_images_per_second"]),
+                    peak_rss_mib=float(record["peak_process_rss_bytes"]) / (1024 * 1024),
+                    sample_id=path.stem,
+                    workload=workload,
                 )
             )
     if not measurements:
@@ -44,7 +70,10 @@ def render_svg(measurements: list[Measurement]) -> str:
     width, height = 1200, 760
     margin_left, margin_right = 92, 50
     chart_width = width - margin_left - margin_right
-    dates = sorted({item.date for item in measurements})
+    sample_ids = list(dict.fromkeys(item.sample_id or item.date for item in measurements))
+    sample_labels = {
+        item.sample_id or item.date: f"{item.date[5:]} {item.workload}" for item in measurements
+    }
     providers = sorted({item.provider for item in measurements})
     colors = {"cpu": "#087e8b", "directml": "#db6d28", "cuda": "#2364aa"}
     grouped: dict[str, list[Measurement]] = defaultdict(list)
@@ -102,10 +131,12 @@ def render_svg(measurements: list[Measurement]) -> str:
             )
         for provider in providers:
             points = []
-            provider_items = sorted(grouped[provider], key=lambda item: item.date)
+            provider_items = sorted(
+                grouped[provider], key=lambda item: sample_ids.index(item.sample_id or item.date)
+            )
             for item in provider_items:
-                date_index = dates.index(item.date)
-                center = margin_left + chart_width * (date_index + 0.5) / len(dates)
+                sample_index = sample_ids.index(item.sample_id or item.date)
+                center = margin_left + chart_width * (sample_index + 0.5) / len(sample_ids)
                 offset = (providers.index(provider) - (len(providers) - 1) / 2) * 22
                 point_x = center + offset
                 value = accessor(item)
@@ -124,13 +155,13 @@ def render_svg(measurements: list[Measurement]) -> str:
                 parts.append(
                     f'<text x="{point_x:.1f}" y="{point_y - 10:.1f}" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#344054">{value:.1f}</text>'
                 )
-        for date_index, date in enumerate(dates):
-            date_x = margin_left + chart_width * (date_index + 0.5) / len(dates)
+        for sample_index, sample_id in enumerate(sample_ids):
+            sample_x = margin_left + chart_width * (sample_index + 0.5) / len(sample_ids)
             parts.append(
-                f'<text x="{date_x:.1f}" y="{bottom + 8}" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#667085">{html.escape(date)}</text>'
+                f'<text x="{sample_x:.1f}" y="{bottom + 8}" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#667085">{html.escape(sample_labels[sample_id])}</text>'
             )
     parts.append(
-        '<text x="64" y="730" font-family="Georgia,serif" font-size="13" fill="#667085">Generated locally from versioned JSON evidence. Synthetic speed does not establish moderation accuracy.</text>'
+        '<text x="64" y="730" font-family="Georgia,serif" font-size="13" fill="#667085">Generated locally from versioned JSON evidence. Workloads are labeled; speed still does not establish moderation accuracy.</text>'
     )
     parts.append("</svg>\n")
     return "".join(parts)

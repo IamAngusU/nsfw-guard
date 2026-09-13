@@ -1,0 +1,8 @@
+include *.md
+include *.cmd
+include vision.example.toml
+recursive-include LICENSES *.txt
+recursive-include benchmarks *.json
+recursive-include docs *.md *.svg
+recursive-include examples *.py
+recursive-include scripts *.py

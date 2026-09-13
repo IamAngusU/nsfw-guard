@@ -66,7 +66,7 @@ are `Install.cmd`, `Install-DirectML.cmd`, and `Scan-Folder.cmd`.
 
 ```powershell
 py -m venv .venv
-.venv\Scripts\python.exe -m pip install "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a2/nsfw_guard-0.1.0a2-py3-none-any.whl"
+.venv\Scripts\python.exe -m pip install "nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a3/nsfw_guard-0.1.0a3-py3-none-any.whl"
 .venv\Scripts\nsfw-guard.exe model install
 .venv\Scripts\nsfw-guard.exe folder "C:\Pictures" --provider cpu --links
 ```
@@ -180,12 +180,33 @@ nsfw-guard folder "C:\Pictures" --provider cpu --fail-on never
 # Re-render the committed benchmark history
 nsfw-guard chart --history benchmarks --output docs/assets/performance-history.svg
 
+# Create, validate, and run optional vision adapters
+nsfw-guard vision init --output vision.toml
+nsfw-guard vision doctor --config vision.toml
+nsfw-guard vision enrich "C:\Pictures\.nsfw-guard\latest-summary.json" --config vision.toml
+
 # Inspect or install the pinned model
 nsfw-guard model status
 nsfw-guard model install
 ```
 
 Run `nsfw-guard folder --help` for byte, pixel, worker, memory, and output controls.
+
+## Optional vision models
+
+Any local model wrapper or compatible HTTPS service can implement the versioned
+`vision-adapter/v1` envelope. Models stay optional and separately configured, load once
+per run, declare their tasks, and can target `ALL` images or only `REVIEW`, `BLOCK`, and
+other outcome groups. Enrichment is written as a separate bounded JSONL stream, so it
+cannot rewrite the pinned NSFW verdict.
+
+The default privacy mode is `local-only`. Remote use requires `remote-tls`, HTTPS, and
+explicit acknowledgement that the provider receives image pixels. Images are resized
+and re-encoded without metadata by default. This is encrypted transport, not a false
+claim that a third-party model can infer over pixels it cannot decrypt.
+
+See [`docs/VISION_ADAPTERS.md`](docs/VISION_ADAPTERS.md) and the disabled starter
+[`vision.example.toml`](vision.example.toml).
 
 ## Trust and limits
 
@@ -203,5 +224,46 @@ See [`SECURITY.md`](SECURITY.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## License
 
-NSFW Guard is available under the MIT License. Model and optional runtime components
+NSFW Guard releases from `0.1.0a3` are available under AGPL-3.0-only. The already
+published `0.1.0a1` release remains MIT. The interoperability protocol is separately
+MIT-licensed so another tool can speak it without inheriting an implementation. Model and optional runtime components
 retain their own licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Polymorph interoperability
+
+`nsfw-guard bridge` is a persistent, versioned JSONL process interface. Polymorph can discover it
+without an adapter package:
+
+```powershell
+python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a3/nsfw_guard-0.1.0a3-py3-none-any.whl"
+polymorph guard --doctor
+polymorph guard C:\images\sample.jpg
+```
+
+The process stays warm, file roots are explicit, requests can be SHA-256-bound and replies are
+correlated and bounded. No retry is invented after an ambiguous failure. It is remarkable how much
+reliability comes from declining to guess.
+
+The protocol specification is permissively licensed in
+[`docs/INTEROPERABILITY.md`](docs/INTEROPERABILITY.md). The implementation remains a separate
+AGPL-3.0-only product.
+
+## Measured real-folder baseline, 2026-09-13
+
+One Windows 11 host, i9-12900K, RTX 3080, 32 GiB RAM, 200 SHA-256-unique real
+screenshots, warm filesystem cache, four workers, model batch size 1:
+
+| Provider | Throughput | Wall time | Peak RSS | Observed host VRAM delta |
+| --- | ---: | ---: | ---: | ---: |
+| CPU, auto-tuned 4 threads | 24.89 images/s | 8.04 s | 450.2 MiB | not applicable |
+| DirectML | 84.07 images/s | 2.38 s | 612.2 MiB | about 103 MiB |
+| CUDA, 768 MiB arena limit | 83.87 images/s | 2.38 s | 925.9 MiB | about 312 MiB |
+
+All three completed 200/200 with zero scan errors. DirectML and CUDA started at 8 percent GPU
+utilization; CPU started at 8.5 percent host CPU. These are local operational measurements, not a
+speed covenant with every laptop ever manufactured. The private corpus is not published and this is
+not an accuracy benchmark.
+
+The CPU auto-thread fix improved this exact workload from a contaminated 5.66 images/s to 24.89
+images/s. Full evidence lives in
+[`benchmarks/2026-09-13-real-screenshots-game-off.json`](benchmarks/2026-09-13-real-screenshots-game-off.json).

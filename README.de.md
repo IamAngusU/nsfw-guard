@@ -110,6 +110,20 @@ Weitere Details: [`START-HERE.md`](START-HERE.md),
 [`docs/FOLDER_SCANNING.md`](docs/FOLDER_SCANNING.md),
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`SECURITY.md`](SECURITY.md).
 
+## Optionale Vision-Modelle
+
+Mit `nsfw-guard vision init`, `vision doctor` und `vision enrich` kann jedes lokale
+Modell hinter einen persistenten JSONL-Adapter gehaengt werden. Ein kompatibler
+HTTPS-Endpunkt funktioniert ebenfalls. Tasks und Routen entscheiden einfach, ob ein
+Modell alle Bilder oder nur Gruppen wie `REVIEW` und `BLOCK` erhaelt. Die Ergebnisse
+landen separat in `vision-results.jsonl` und veraendern nie das NSFW-Grundurteil.
+
+Standard ist `local-only`. Remote-Nutzung verlangt `remote-tls`, HTTPS und eine
+ausdrueckliche Bestaetigung der Bildweitergabe. Bilder werden standardmaessig verkleinert
+und ohne Originalmetadaten neu kodiert. Das ist verschluesselter Transport, aber keine
+falsche E2EE-Behauptung gegenueber dem Modellanbieter. Details stehen in
+[`docs/VISION_ADAPTERS.md`](docs/VISION_ADAPTERS.md).
+
 ## Grenzen
 
 - Klassifikatoren koennen falsch liegen und Bias enthalten.
@@ -120,5 +134,45 @@ Weitere Details: [`START-HERE.md`](START-HERE.md),
 
 ## Lizenz
 
-Der Anwendungscode steht unter MIT. Modell und optionale Runtimes behalten ihre
+Der Anwendungscode steht ab `0.1.0a3` unter AGPL-3.0-only. Das bereits veroeffentlichte
+`0.1.0a1` bleibt MIT. Modell und optionale Runtimes behalten ihre
 jeweiligen Lizenzen, siehe [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Polymorph-Interoperabilitaet
+
+`nsfw-guard bridge` ist eine persistente, versionierte JSONL-Prozessschnittstelle. Polymorph findet
+sie ohne zusaetzliches Adapter-Paket:
+
+```powershell
+python -m pip install "https://github.com/IamAngusU/polymorph/releases/download/v0.4.0a11/polymorph_bridge-0.4.0a11-py3-none-any.whl" "https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a3/nsfw_guard-0.1.0a3-py3-none-any.whl"
+polymorph guard --doctor
+polymorph guard C:\Bilder\beispiel.jpg
+```
+
+Der Prozess bleibt warm, Dateiwurzeln sind explizit, Requests koennen an SHA-256 gebunden werden und
+Antworten werden korreliert und begrenzt. Nach einem mehrdeutigen Fehler wird kein Retry erfunden.
+Erstaunlich viel Zuverlaessigkeit entsteht dadurch, dass Software gelegentlich nicht raet.
+
+Die Protokollspezifikation ist in
+[`docs/INTEROPERABILITY.md`](docs/INTEROPERABILITY.md) permissiv lizenziert. Die Implementierung
+bleibt ein getrenntes Produkt unter AGPL-3.0-only. Das bereits veroeffentlichte `0.1.0a1` bleibt MIT.
+
+## Gemessene Real-Folder-Baseline, 13.09.2026
+
+Ein Windows-11-Host, i9-12900K, RTX 3080, 32 GiB RAM, 200 SHA-256-eindeutige reale
+Screenshots, warmer Dateisystem-Cache, vier Worker, Model-Batchgroesse 1:
+
+| Provider | Durchsatz | Laufzeit | Peak RSS | Beobachtetes Host-VRAM-Delta |
+| --- | ---: | ---: | ---: | ---: |
+| CPU, automatisch 4 Threads | 24,89 Bilder/s | 8,04 s | 450,2 MiB | nicht anwendbar |
+| DirectML | 84,07 Bilder/s | 2,38 s | 612,2 MiB | etwa 103 MiB |
+| CUDA, 768-MiB-Arena-Limit | 83,87 Bilder/s | 2,38 s | 925,9 MiB | etwa 312 MiB |
+
+Alle drei Laeufe beendeten 200/200 Dateien ohne Scanfehler. DirectML und CUDA starteten bei 8 Prozent
+GPU-Last; CPU bei 8,5 Prozent Host-CPU. Das sind lokale Betriebsmessungen, kein
+Geschwindigkeitsvertrag mit jedem jemals gebauten Laptop. Das private Korpus wird nicht
+veroeffentlicht und dies ist kein Accuracy-Benchmark.
+
+Der CPU-Auto-Thread-Fix verbesserte exakt diese Last von kontaminierten 5,66 auf 24,89 Bilder/s.
+Vollstaendige Evidenz:
+[`benchmarks/2026-09-13-real-screenshots-game-off.json`](benchmarks/2026-09-13-real-screenshots-game-off.json).

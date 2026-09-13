@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nsfw-guard"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Fast, local-first image safety decisions with an integration-safe bridge."
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = "AGPL-3.0-only"
 authors = [{ name = "Angus Velsmann" }]
 keywords = ["content-safety", "image-classification", "nsfw", "onnx", "local-first"]
 classifiers = [

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from .cli import main as legacy_main
 from .folder_scan import main as folder_main
 from .metrics_chart import main as chart_main
+from .vision_pipeline import main as vision_main
 
 TOP_LEVEL_HELP = """usage: nsfw-guard COMMAND [OPTIONS]
 
@@ -17,6 +18,7 @@ commands:
   bridge     Run the safety-bridge/v1 NDJSON service
   benchmark  Measure one warm model session
   chart      Render versioned benchmark history as a light-mode SVG
+  vision     Attach optional local or explicitly approved remote vision models
   model      Install or inspect the pinned model
 
 Run `nsfw-guard COMMAND --help` for command-specific options.
@@ -33,4 +35,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return folder_main(arguments[1:])
     if command == "chart":
         return chart_main(arguments[1:])
+    if command == "vision":
+        return vision_main(arguments[1:])
     return legacy_main(arguments)
