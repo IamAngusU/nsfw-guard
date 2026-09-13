@@ -2,6 +2,7 @@
 param(
   [string]$InputPath,
   [switch]$Cleanup,
+  [switch]$CleanupOnly,
   [string]$CacheBase
 )
 
@@ -9,6 +10,43 @@ $ErrorActionPreference = 'Stop'
 $cacheName = 'quick-try-v0.1.0a4-ps1'
 $markerText = 'nsfw-guard-trial-v1'
 $wheel = 'nsfw-guard[cpu] @ https://github.com/IamAngusU/nsfw-guard/releases/download/v0.1.0a4/nsfw_guard-0.1.0a4-py3-none-any.whl'
+
+function Assert-PlainPath([string]$Path) {
+  $cursor = [IO.Path]::GetFullPath($Path)
+  while ($cursor) {
+    if (Test-Path -LiteralPath $cursor) {
+      $item = Get-Item -LiteralPath $cursor -Force
+      if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Refusing a linked cache path: $cursor"
+      }
+    }
+    $parent = [IO.Directory]::GetParent($cursor)
+    $cursor = if ($parent) { $parent.FullName } else { $null }
+  }
+}
+
+function Remove-TrialCache([string]$Base, [string]$Root) {
+  $expected = [IO.Path]::GetFullPath((Join-Path $Base (Join-Path 'nsfw-guard' $cacheName)))
+  if ($Root -ne $expected) { throw 'Unsafe cleanup path.' }
+  if (-not (Test-Path -LiteralPath $Root)) {
+    Write-Host "Trial cache already absent / Test-Cache bereits entfernt: $Root"
+    return
+  }
+  Assert-PlainPath $Root
+  if ((Get-Content -LiteralPath (Join-Path $Root '.owner') -Raw).Trim() -ne $markerText) {
+    throw 'Ownership marker missing or changed.'
+  }
+  Remove-Item -LiteralPath $Root -Recurse -Force
+  Write-Host "Removed trial cache / Test-Cache entfernt: $Root"
+}
+
+$userHome = [IO.Path]::GetFullPath([Environment]::GetFolderPath('UserProfile'))
+if ($CleanupOnly) {
+  $base = if ($CacheBase) { [IO.Path]::GetFullPath($CacheBase) } else { Join-Path $userHome '.cache' }
+  $root = [IO.Path]::GetFullPath((Join-Path $base (Join-Path 'nsfw-guard' $cacheName)))
+  Remove-TrialCache $base $root
+  return
+}
 
 if (-not $InputPath) { $InputPath = Read-Host 'Image or folder path / Bild- oder Ordnerpfad' }
 $InputPath = $InputPath.Trim().Trim('"')
@@ -26,15 +64,25 @@ try {
   throw "Cannot read '$InputPath'. Check the path and your permissions. $($_.Exception.Message)"
 }
 
-try {
-  Get-Command python -ErrorAction Stop | Out-Null
-  & python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'
-  if ($LASTEXITCODE -ne 0) { throw 'Python is older than 3.10.' }
-} catch {
-  throw "Python 3.10+ is needed. Install it for your user account, then retry. $($_.Exception.Message)"
+$pythonCommand = $null
+$launcherFlags = @()
+foreach ($candidate in @('py', 'python')) {
+  if (-not (Get-Command $candidate -ErrorAction SilentlyContinue)) { continue }
+  $candidateFlags = @()
+  if ($candidate -eq 'py') { $candidateFlags = @('-3') }
+  try {
+    & $candidate @candidateFlags -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'
+    if ($LASTEXITCODE -eq 0) {
+      $pythonCommand = $candidate
+      $launcherFlags = $candidateFlags
+      break
+    }
+  } catch { continue }
+}
+if (-not $pythonCommand) {
+  throw 'Python 3.10+ is needed. Tried py -3 and python; install one for your user account and retry.'
 }
 
-$userHome = [IO.Path]::GetFullPath([Environment]::GetFolderPath('UserProfile'))
 if ($CacheBase) {
   $bases = @($CacheBase)
 } else {
@@ -53,6 +101,7 @@ foreach ($candidate in $bases) {
     if (-not $root.StartsWith($base.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
       throw 'Unsafe cache path.'
     }
+    Assert-PlainPath $root
     if (Test-Path -LiteralPath $root) {
       $item = Get-Item -LiteralPath $root -Force
       if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Cache is a link.' }
@@ -89,7 +138,7 @@ $guard = Join-Path $venv 'Scripts\nsfw-guard.exe'
 $model = Join-Path $root 'model.onnx'
 try {
   if (-not (Test-Path -LiteralPath $python)) {
-    & python -m venv $venv
+    & $pythonCommand @launcherFlags -m venv $venv
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $python)) {
       throw "Could not create the private environment at '$venv'. Try -CacheBase with another writable folder."
     }
@@ -98,6 +147,7 @@ try {
     & $python -m pip install --no-cache-dir --disable-pip-version-check $wheel
     if ($LASTEXITCODE -ne 0) { throw 'Package installation failed; check the network and free space.' }
   }
+  Assert-PlainPath $root
   if ($inputItem.PSIsContainer) {
     & $guard folder $inputItem.FullName --provider cpu --model-path $model --max-files 32 --output-dir (Join-Path $root 'results') --links
   } else {
@@ -107,15 +157,7 @@ try {
 } finally {
   if ($Cleanup) {
     try {
-      $expected = [IO.Path]::GetFullPath((Join-Path $base (Join-Path 'nsfw-guard' $cacheName)))
-      if ($root -ne $expected) { throw 'Unsafe cleanup path.' }
-      $item = Get-Item -LiteralPath $root -Force
-      if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Linked cache.' }
-      if ((Get-Content -LiteralPath (Join-Path $root '.owner') -Raw).Trim() -ne $markerText) {
-        throw 'Ownership marker missing or changed.'
-      }
-      Remove-Item -LiteralPath $root -Recurse -Force
-      Write-Host "Removed trial cache / Test-Cache entfernt: $root"
+      Remove-TrialCache $base $root
     } catch {
       throw "Cleanup did not finish at '$root'. Nothing else was removed. $($_.Exception.Message)"
     }
