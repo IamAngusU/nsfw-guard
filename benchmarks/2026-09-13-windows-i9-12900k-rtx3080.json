@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "measurement_date": "2026-09-13",
+  "host": {
+    "os": "Windows 11",
+    "cpu": "Intel Core i9-12900K",
+    "logical_cpu_count": 24,
+    "ram_gib": 32,
+    "gpu": "NVIDIA GeForce RTX 3080",
+    "gpu_vram_mib": 10240,
+    "nvidia_driver": "610.62",
+    "python": "3.11.9"
+  },
+  "workload": {
+    "profile": "synthetic-1280x720-jpeg-sequential-end-to-end",
+    "runs": 40,
+    "warmups": 5,
+    "accuracy_test": false
+  },
+  "nsfw_guard": [
+    {
+      "provider": "cpu",
+      "runtime": "onnxruntime-1.30.0",
+      "threads": 0,
+      "model_load_ms": 85.7275,
+      "inference_p50_ms": 18.7072,
+      "inference_p95_ms": 19.8661,
+      "total_p50_ms": 27.7433,
+      "total_p95_ms": 29.7021,
+      "throughput_images_per_second": 36.0434,
+      "peak_process_rss_bytes": 155791360
+    },
+    {
+      "provider": "directml",
+      "runtime": "onnxruntime-directml-1.24.4",
+      "threads": 0,
+      "model_load_ms": 1119.9634,
+      "inference_p50_ms": 4.02065,
+      "inference_p95_ms": 4.3424,
+      "total_p50_ms": 11.08485,
+      "total_p95_ms": 11.3296,
+      "throughput_images_per_second": 90.1205,
+      "peak_process_rss_bytes": 389107712
+    },
+    {
+      "provider": "cuda",
+      "runtime": "onnxruntime-gpu-1.30.0",
+      "threads": 0,
+      "cuda_arena_limit_mib": 256,
+      "model_load_ms": 193.3371,
+      "inference_p50_ms": 3.9527,
+      "inference_p95_ms": 5.0115,
+      "total_p50_ms": 10.96435,
+      "total_p95_ms": 12.2561,
+      "throughput_images_per_second": 90.2265,
+      "peak_process_rss_bytes": 810676224,
+      "approximate_host_total_vram_delta_mib": 276,
+      "per_process_vram_bytes": null
+    }
+  ],
+  "external_references": [
+    {
+      "name": "NudeNet",
+      "version": "3.4.2",
+      "license": "AGPL-3.0",
+      "runtime": "CPU",
+      "model_bytes": 12150158,
+      "model_load_ms": 73.5393,
+      "total_p50_ms": 13.99545,
+      "total_p95_ms": 15.2397,
+      "throughput_images_per_second": 71.3812,
+      "peak_process_rss_bytes": 138051584,
+      "contract": "object detection; not directly accuracy-comparable"
+    }
+  ],
+  "provider_parity": {
+    "fixture_sha256": "acbcc7e4646e264ba627e3694b8f319cab0000827a536a918ecff8a1735b437f",
+    "verdict": "ALLOW",
+    "cpu_nsfw_score": 0.11498016031701244,
+    "cuda_nsfw_score": 0.11496923479496081,
+    "directml_nsfw_score": 0.11498023765027492,
+    "maximum_absolute_delta_from_cpu": 0.000010925522051632997
+  },
+  "limitations": [
+    "Synthetic inputs measure runtime behavior, not classification accuracy.",
+    "Results are host-specific and are not a service-level guarantee.",
+    "WDDM did not expose a trustworthy per-process VRAM measurement.",
+    "CUDA gpu_mem_limit covers the ONNX Runtime arena, not total device memory."
+  ]
+}

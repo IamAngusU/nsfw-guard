@@ -1,0 +1,18 @@
+name: local-validation-template
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/validate_local.py
+
+# This file is deliberately outside .github/workflows and has a .disabled
+# suffix. Move it only after repository billing and execution are approved.

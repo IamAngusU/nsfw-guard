@@ -1,0 +1,2 @@
+{"protocol":"safety-bridge/v1","id":"health-1","operation":"health"}
+{"protocol":"safety-bridge/v1","id":"scan-1","operation":"scan","artifact":{"kind":"file","path":"image.jpg"},"policy":{"profile":"balanced-v1"}}
