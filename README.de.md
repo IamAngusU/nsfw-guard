@@ -22,14 +22,15 @@ gebaut.
 
 ## Was das Produkt anders macht
 
-- **Lokal:** NSFW Guard laedt Bilddaten nicht in einen fremden Dienst hoch.
+- **Lokal zuerst:** Basisklassifikator und Ordner-Scan laden keine Bilder hoch.
+  Optionale Remote-Vision-Adapter uebertragen Pixel nur nach expliziter Freigabe.
 - **Nicht destruktiv:** Bilder und ihre Metadaten werden nie veraendert.
 - **Fail-closed:** Unlesbare Dateien erhalten ein sichtbares `ERROR`.
 - **Begrenzt:** Warteschlange, Metrik-Samples, Bildbytes und Pixel wachsen nicht
   unkontrolliert mit der Sammlung.
 - **Nachvollziehbar:** JSONL-Evidenz nennt Modell, Policy, Provider, Lauf und Timing.
-- **Einfach reviewbar:** `--links` erzeugt kleine `.url`-Verknuepfungen fuer
-  `BLOCK`, `REVIEW` und `ERROR` sowie einen lokalen Lightmode-Index.
+- **Einfach reviewbar:** `--links` erzeugt portable HTML-Indexe und Windows-`.url`-
+  Verknuepfungen fuer `BLOCK`, `REVIEW` und `ERROR`.
 - **Ehrlich schnell:** CPU-Vorbereitung laeuft parallel, GPU-Inferenz wird pro Session
   serialisiert. Das aktuelle Modell nutzt Batchgroesse `1`.
 
@@ -128,7 +129,9 @@ falsche E2EE-Behauptung gegenueber dem Modellanbieter. Details stehen in
 
 - Klassifikatoren koennen falsch liegen und Bias enthalten.
 - Die mitgelieferten Policy-Schwellenwerte sind Vorgaben, nicht fuer die eigenen
-  Daten kalibriert oder validiert; siehe [`MODEL_CARD.md`](MODEL_CARD.md).
+  Daten kalibriert oder validiert. Bevorzuge `low-threshold-v1`,
+  `medium-threshold-v1` oder `high-threshold-v1`; alte Namen bleiben gueltig. Siehe
+  [`MODEL_CARD.md`](MODEL_CARD.md).
 - DirectML und CUDA haengen von Betriebssystem, Treiber und Runtime ab.
 - WDDM liefert teilweise nur GPU-Gesamtwerte statt verlaesslichem Prozess-VRAM.
 - Es gibt keine aktive GitHub Action und keine verpflichtende Telemetrie.

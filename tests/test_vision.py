@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from nsfw_guard.vision_adapters import JsonObject, VisionAdapter, _remote_image
+from nsfw_guard.vision_adapters import JsonObject, VisionAdapter, VisionAdapterError, _remote_image
 from nsfw_guard.vision_config import (
     PrivacyConfig,
     VisionConfigError,
@@ -91,6 +91,53 @@ def test_remote_sanitization_is_explicit_and_bounded(tmp_path: Path) -> None:
     with Image.open(io.BytesIO(content)) as sanitized:
         assert max(sanitized.size) == 64
         assert not sanitized.getexif()
+
+
+@pytest.mark.parametrize(
+    ("actual_format", "expected_mime"),
+    [
+        ("PNG", "image/png"),
+        ("JPEG", "image/jpeg"),
+        ("WEBP", "image/webp"),
+    ],
+)
+def test_unsanitized_remote_mime_follows_bytes_not_extension(
+    tmp_path: Path, actual_format: str, expected_mime: str
+) -> None:
+    source = tmp_path / "misnamed.jpg"
+    Image.new("RGB", (8, 8), "blue").save(source, format=actual_format)
+    privacy = PrivacyConfig(
+        mode="remote-tls",
+        acknowledge_remote_image_disclosure=True,
+        sanitize_remote_images=False,
+        remote_max_edge=64,
+        remote_jpeg_quality=80,
+        max_upload_bytes=1024 * 1024,
+        max_response_bytes=1024,
+    )
+
+    content, mime_type, metadata_removed = _remote_image(source, privacy)
+
+    assert content == source.read_bytes()
+    assert mime_type == expected_mime
+    assert metadata_removed is False
+
+
+def test_unsanitized_remote_rejects_non_image_even_with_jpg_name(tmp_path: Path) -> None:
+    source = tmp_path / "fake.jpg"
+    source.write_bytes(b"not an image")
+    privacy = PrivacyConfig(
+        mode="remote-tls",
+        acknowledge_remote_image_disclosure=True,
+        sanitize_remote_images=False,
+        remote_max_edge=64,
+        remote_jpeg_quality=80,
+        max_upload_bytes=1024 * 1024,
+        max_response_bytes=1024,
+    )
+
+    with pytest.raises(VisionAdapterError, match="remote image format could not be identified"):
+        _remote_image(source, privacy)
 
 
 def test_command_adapter_is_persistent_and_pipeline_routes_records(
@@ -177,11 +224,13 @@ class _ReadingAdapter(VisionAdapter):
     def __init__(self, original: Path) -> None:
         self.original = original
         self.received: list[bytes] = []
+        self.received_suffixes: list[str] = []
 
     def analyze(self, source: Path, *, tasks: tuple[str, ...], context: JsonObject) -> JsonObject:
         del tasks, context
         self.original.write_bytes(b"changed after staging")
         self.received.append(source.read_bytes())
+        self.received_suffixes.append(source.suffix)
         return {"ok": True, "outputs": {}}
 
     def close(self) -> None:
@@ -237,6 +286,37 @@ def test_vision_uses_verified_snapshot_not_mutable_original(tmp_path: Path) -> N
     assert enriched["analyses"][0]["ok"] is True
     assert adapter.received == [original_bytes]
     assert original.read_bytes() != original_bytes
+
+
+def test_vision_snapshot_suffix_follows_verified_format_not_name_or_record(
+    tmp_path: Path,
+) -> None:
+    original = tmp_path / "misnamed.jpg"
+    Image.new("RGB", (10, 10), "red").save(original, format="PNG")
+    original_bytes = original.read_bytes()
+    record: JsonObject = {
+        "index": 1,
+        "relative_path": original.name,
+        "verdict": "BLOCK",
+        "artifact": {
+            "sha256": hashlib.sha256(original_bytes).hexdigest(),
+            "media_format": "JPEG",  # JSONL metadata is not authority over verified bytes.
+        },
+    }
+    adapter = _ReadingAdapter(original)
+
+    enriched, errors = _analyze_record(
+        record,
+        root=tmp_path,
+        config=_local_vision_config(tmp_path),
+        adapters={"reader": adapter},
+        stats={"reader": ModelStats()},
+    )
+
+    assert errors == 0
+    assert enriched["analyses"][0]["ok"] is True
+    assert adapter.received == [original_bytes]
+    assert adapter.received_suffixes == [".png"]
 
 
 class _StageMutator(VisionAdapter):

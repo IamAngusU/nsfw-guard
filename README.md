@@ -29,14 +29,15 @@ flagged originals without copying or modifying them?
 
 NSFW Guard packages those concerns as a small standalone product:
 
-- **Local-first:** image bytes are not uploaded by NSFW Guard.
+- **Local-first:** the base classifier and folder scanner do not upload images.
+  Optional remote vision adapters transmit pixels only after explicit opt-in.
 - **Non-destructive:** source images and their metadata are never changed.
 - **Fail-closed:** malformed or undecodable inputs become explicit `ERROR` records.
 - **Bounded:** input discovery, pending work, metric samples, pixels, and bytes have
   limits rather than growing with an entire collection.
 - **Auditable:** JSONL results include model, policy, provider, timing, and run IDs.
-- **Reviewable:** `--links` creates lightweight `.url` pointers for `BLOCK`, `REVIEW`,
-  and `ERROR`, plus a light-mode local index.
+- **Reviewable:** `--links` creates portable HTML review indexes and Windows `.url`
+  pointers for `BLOCK`, `REVIEW`, and `ERROR`.
 - **Honest about acceleration:** CPU preparation overlaps with serialized GPU session
   calls. The current model batch is `1`; the CLI does not call concurrency "batching."
 
@@ -83,6 +84,7 @@ Pictures/
   .nsfw-guard/
     latest-summary.json
     latest-flags.jsonl
+    OPEN-LATEST-RESULTS.html
     OPEN-LATEST-RESULTS.url
     runs/<run-id>/
       all-results.jsonl
@@ -91,14 +93,21 @@ Pictures/
       status.json
       metrics.svg
       links/
-        BLOCK/*.url
-        REVIEW/*.url
-        ERROR/*.url
         index.html
+        BLOCK/
+          index.html
+          *.url
+        REVIEW/
+          index.html
+          *.url
+        ERROR/
+          index.html
+          *.url
 ```
 
-Deleting a `.url` file does not delete the image. Opening one navigates to the local
-original. Run without `--links` when no review collection is wanted. Use
+Deleting a review link does not delete the image. Open an HTML index on any platform,
+or a `.url` shortcut on Windows, to navigate to the local original. Run without
+`--links` when no review collection is wanted. Use
 `--output-dir` when evidence should live somewhere else.
 
 ## Smart parallelism
@@ -213,7 +222,8 @@ See [`docs/VISION_ADAPTERS.md`](docs/VISION_ADAPTERS.md) and the disabled starte
 - The default ONNX model is pinned by URL and SHA-256 and licensed Apache-2.0.
 - Scores can be wrong, biased, or unsuitable for a particular policy or population.
 - Shipped policy thresholds are presets, not calibrated or validated for your
-  data; see [`MODEL_CARD.md`](MODEL_CARD.md) before relying on verdicts.
+  data. Prefer `low-threshold-v1`, `medium-threshold-v1`, or `high-threshold-v1`; older
+  names remain accepted. See [`MODEL_CARD.md`](MODEL_CARD.md) before relying on verdicts.
 - `REVIEW` exists because uncertainty should stay visible.
 - Hardware metrics report their measurement scope. Windows WDDM may expose only
   host-total GPU usage, not reliable per-process VRAM.

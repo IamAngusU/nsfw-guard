@@ -24,6 +24,7 @@ from . import __version__
 from .errors import GuardError
 from .scanner import ScanLimits, read_bounded_image_path
 from .vision_adapters import (
+    IMAGE_FORMATS,
     JsonObject,
     VisionAdapter,
     VisionAdapterError,
@@ -165,7 +166,7 @@ def _safe_source(root: Path, relative_path: object) -> Path:
     return candidate
 
 
-def _verified_payload(source: Path, artifact: object, limits: ScanLimits) -> bytes:
+def _verified_payload(source: Path, artifact: object, limits: ScanLimits) -> tuple[bytes, str]:
     if not isinstance(artifact, dict):
         raise VisionAdapterError("vision_source_missing_sha256_evidence")
     expected = artifact.get("sha256")
@@ -185,8 +186,9 @@ def _verified_payload(source: Path, artifact: object, limits: ScanLimits) -> byt
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(io.BytesIO(payload)) as image:
+                media_format = (image.format or "").upper()
                 width, height = image.size
-                if image.format not in limits.allowed_formats:
+                if media_format not in limits.allowed_formats or media_format not in IMAGE_FORMATS:
                     raise VisionAdapterError("vision_source_unsupported_image_format")
                 if width <= 0 or height <= 0 or width * height > limits.max_pixels:
                     raise VisionAdapterError("vision_source_exceeds_pixel_limit")
@@ -195,7 +197,7 @@ def _verified_payload(source: Path, artifact: object, limits: ScanLimits) -> byt
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise VisionAdapterError("vision_source_invalid_image") from exc
 
-    return payload
+    return payload, media_format
 
 
 def _clean_error(error: BaseException, root: Path) -> str:
@@ -288,9 +290,18 @@ def _analyze_record(
     errors = 0
     if models:
         try:
-            payload = _verified_payload(source, record.get("artifact"), limits or ScanLimits())
+            payload, media_format = _verified_payload(
+                source, record.get("artifact"), limits or ScanLimits()
+            )
             analyses, errors = _run_selected_adapters(
-                payload, source.suffix.lower(), record, verdict, models, adapters, stats, root
+                payload,
+                IMAGE_FORMATS[media_format][0],
+                record,
+                verdict,
+                models,
+                adapters,
+                stats,
+                root,
             )
         except (OSError, VisionAdapterError) as exc:
             return (

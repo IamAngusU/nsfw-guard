@@ -34,8 +34,12 @@ independently licensed corpora.
 
 ## Policy threshold limitations
 
-The shipped `safety-first-v1`, `balanced-v1`, and `high-precision-v1` profiles
-use fixed score cutoffs. They have not been calibrated or validated here on a
+The neutral `low-threshold-v1`, `medium-threshold-v1`, and `high-threshold-v1`
+profiles use fixed review/block score cutoffs of 0.15/0.65, 0.35/0.80, and
+0.60/0.93 respectively. Historical names `safety-first-v1`, `balanced-v1`, and
+`high-precision-v1` remain compatible aliases with the same cutoffs; their names
+do not imply measured safety or precision. None of these profiles has been
+calibrated or validated here on a
 representative, independently labeled corpus for a particular deployment. Their
 names do not establish measured precision, recall, false-positive or
 false-negative rates, or score calibration. Before relying on verdicts, choose

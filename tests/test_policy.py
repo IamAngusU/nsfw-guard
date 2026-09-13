@@ -21,3 +21,22 @@ def test_invalid_policy_thresholds_are_rejected() -> None:
 def test_invalid_score_is_rejected() -> None:
     with pytest.raises(InvalidInputError):
         evaluate_score(1.1, get_policy("balanced-v1"))
+
+
+@pytest.mark.parametrize(
+    ("neutral", "legacy"),
+    [
+        ("low-threshold-v1", "safety-first-v1"),
+        ("medium-threshold-v1", "balanced-v1"),
+        ("high-threshold-v1", "high-precision-v1"),
+    ],
+)
+def test_neutral_policy_names_preserve_legacy_thresholds(neutral: str, legacy: str) -> None:
+    current = get_policy(neutral)
+    previous = get_policy(legacy)
+    assert (current.review_threshold, current.block_threshold) == (
+        previous.review_threshold,
+        previous.block_threshold,
+    )
+    assert current.name == neutral
+    assert previous.name == legacy

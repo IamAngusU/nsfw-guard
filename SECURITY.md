@@ -2,7 +2,11 @@
 
 ## Security properties in 0.1
 
-- User images are processed locally and are never uploaded by NSFW Guard.
+- The base classifier and folder scanner process images locally and do not upload them.
+  Optional remote vision adapters can transmit image pixels to an external provider
+  only after `remote-tls` and explicit image-disclosure acknowledgement are enabled.
+  Remote images are sanitized by default; disabling sanitization can transmit the
+  original verified encoded bytes, including metadata.
 - The default model URL is commit-pinned and the downloaded bytes must match a
   hard-coded SHA-256 digest before loading.
 - File inputs are read once with an encoded-byte limit and bound to the digest
@@ -17,6 +21,8 @@
 ## Important non-properties
 
 - A model prediction is not proof that content is safe or unsafe.
+- `local-only` restricts NSFW Guard's HTTP adapter destinations, but a trusted
+  command adapter is arbitrary local code and is not sandboxed from networking.
 - The bridge root check is not an operating-system sandbox.
 - `cuda_arena_limit_mib` maps to ONNX Runtime's `gpu_mem_limit`. It limits the
   CUDA arena, not total process or device VRAM.

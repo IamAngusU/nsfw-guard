@@ -27,14 +27,14 @@ import psutil
 
 from .backend import OnnxBackend
 from .errors import GuardError, InvalidInputError
-from .policy import get_policy
+from .policy import POLICY_PROFILES, get_policy
 from .scanner import ScanLimits, Scanner
 
 JsonObject = dict[str, Any]
 MIB = 1024 * 1024
 SUPPORTED_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 MAX_DISCOVERY_FILES = 100_000
-POLICY_NAMES = ("balanced-v1", "high-precision-v1", "safety-first-v1")
+POLICY_NAMES = tuple(sorted(POLICY_PROFILES))
 PROVIDER_NAMES = ("cpu", "cuda", "directml")
 
 

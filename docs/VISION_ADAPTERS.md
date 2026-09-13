@@ -58,7 +58,10 @@ Remote images are sanitized by default:
 - serialized upload bytes are bounded before a request begins
 
 Set `sanitize_remote_images = false` only when the remote model needs the exact source
-encoding or metadata. The evidence then records `metadata_removed = false`.
+encoding or metadata. The evidence then records `metadata_removed = false`. In that
+mode the MIME type is detected from the verified image bytes, not the filename or
+untrusted JSONL metadata. Temporary adapter filenames likewise use the detected
+format, so a PNG named `.jpg` is staged as `.png`.
 
 ## Routing
 
@@ -181,7 +184,8 @@ does not pretend to be a semantic vision model.
 - each configured model is loaded or connected once
 - adapters only run for selected verdict groups
 - selected images are byte-bound, digest-verified, and passed as temporary snapshots
-- remote pixels are resized before Base64 encoding
+- sanitized remote pixels are resized before Base64 encoding; unsanitized mode
+  sends the verified original encoding without resizing
 - responses have a strict byte ceiling
 - outputs are flushed, synchronized, and atomically replaced
 - per-model calls, failures, mean latency, maximum latency, and total runtime are saved

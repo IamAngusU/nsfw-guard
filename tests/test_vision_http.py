@@ -87,12 +87,14 @@ def _server(*, large_analysis: bool = False) -> Iterator[tuple[str, _State]]:
         thread.join(timeout=2.0)
 
 
-def _config(path: Path, url: str, *, response_kib: int = 256) -> None:
+def _config(
+    path: Path, url: str, *, response_kib: int = 256, sanitize_remote_images: bool = True
+) -> None:
     path.write_text(
         f"""schema_version = 1
 [privacy]
 mode = "local-only"
-sanitize_remote_images = true
+sanitize_remote_images = {str(sanitize_remote_images).lower()}
 remote_max_edge = 128
 max_response_kib = {response_kib}
 [[models]]
@@ -134,6 +136,26 @@ def test_loopback_http_reuses_connection_and_receives_sanitized_pixels(
         assert remote_image.format == "JPEG"
         assert max(remote_image.size) == 128
         assert not remote_image.getexif()
+
+
+def test_unsanitized_http_mime_uses_image_bytes(tmp_path: Path) -> None:
+    source = tmp_path / "misnamed.jpg"
+    Image.new("RGB", (16, 16), "red").save(source, format="PNG")
+    original_bytes = source.read_bytes()
+    with _server() as (url, state):
+        config_path = tmp_path / "vision.toml"
+        _config(config_path, url, sanitize_remote_images=False)
+        adapters = create_adapters(load_vision_config(config_path))
+        try:
+            response = adapters["loopback"].analyze(source, tasks=("describe",), context={})
+        finally:
+            close_adapters(adapters)
+
+    assert response["ok"] is True
+    image_input = cast(dict[str, object], state.requests[1]["input"])
+    assert image_input["mime_type"] == "image/png"
+    assert image_input["metadata_removed"] is False
+    assert base64.b64decode(cast(str, image_input["data"])) == original_bytes
 
 
 def test_http_response_limit_stops_without_retry(tmp_path: Path) -> None:

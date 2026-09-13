@@ -54,7 +54,7 @@ recreated from evidence; they are not the source of truth.
 
 ## Deliberate non-goals
 
-- no cloud upload service
+- no built-in hosted upload service; optional remote vision adapters require opt-in
 - no browser UI dependency
 - no modification of image metadata
 - no automatic deletion or quarantine

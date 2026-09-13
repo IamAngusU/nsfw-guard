@@ -17,7 +17,7 @@ from types import TracebackType
 from typing import cast
 from urllib.parse import urlsplit
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .vision_config import (
     PROTOCOL_NAME,
@@ -28,6 +28,11 @@ from .vision_config import (
 )
 
 JsonObject = dict[str, object]
+IMAGE_FORMATS: dict[str, tuple[str, str]] = {
+    "JPEG": (".jpg", "image/jpeg"),
+    "PNG": (".png", "image/png"),
+    "WEBP": (".webp", "image/webp"),
+}
 
 
 class VisionAdapterError(RuntimeError):
@@ -256,12 +261,14 @@ def _remote_image(source: Path, privacy: PrivacyConfig) -> tuple[bytes, str, boo
         raise VisionAdapterError("remote image read failed") from exc
     if len(content) > privacy.max_upload_bytes:
         raise VisionAdapterError("remote image exceeded its upload limit")
-    mime_type = {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".webp": "image/webp",
-    }.get(source.suffix.lower(), "application/octet-stream")
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            media_format = (image.format or "").upper()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise VisionAdapterError("remote image format could not be identified") from exc
+    if media_format not in IMAGE_FORMATS:
+        raise VisionAdapterError("remote image format is not supported")
+    mime_type = IMAGE_FORMATS[media_format][1]
     return content, mime_type, False
 
 

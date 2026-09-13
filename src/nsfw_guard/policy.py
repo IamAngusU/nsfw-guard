@@ -25,6 +25,10 @@ class PolicyConfig:
 
 
 POLICY_PROFILES: dict[str, PolicyConfig] = {
+    "low-threshold-v1": PolicyConfig("low-threshold-v1", 0.15, 0.65),
+    "medium-threshold-v1": PolicyConfig("medium-threshold-v1", 0.35, 0.80),
+    "high-threshold-v1": PolicyConfig("high-threshold-v1", 0.60, 0.93),
+    # Historical names remain accepted so existing configs and evidence stay valid.
     "safety-first-v1": PolicyConfig("safety-first-v1", 0.15, 0.65),
     "balanced-v1": PolicyConfig("balanced-v1", 0.35, 0.80),
     "high-precision-v1": PolicyConfig("high-precision-v1", 0.60, 0.93),

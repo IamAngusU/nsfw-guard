@@ -3,6 +3,14 @@
 ## Unreleased
 
 - Correct the combined GitHub wheel example to request the CPU runtime extra explicitly.
+- Bind vision enrichment to the base artifact digest and give each adapter its own
+  verified temporary image copy.
+- Bound folder discovery, report explicit partial selections, and add portable HTML
+  review links alongside Windows shortcuts.
+- Derive unsanitized vision MIME types and temporary suffixes from image bytes rather
+  than filenames; clarify the opt-in remote-upload privacy boundary.
+- Add neutral threshold-profile aliases while retaining historical profile names.
+- Add a manual release-evidence manifest and checklist; GitHub Actions remain disabled.
 
 ## 0.1.0a3 - 2026-09-13
 
