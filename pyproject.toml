@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nsfw-guard"
-version = "0.1.0a3"
+version = "0.1.0a4.dev0"
 description = "Fast, local-first image safety decisions with an integration-safe bridge."
 readme = "README.md"
 requires-python = ">=3.10"

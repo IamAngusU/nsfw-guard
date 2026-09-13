@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Correct the combined GitHub wheel example to request the CPU runtime extra explicitly.
+
 ## 0.1.0a3 - 2026-09-13
 
 - Add versioned persistent command and HTTP vision adapters.
