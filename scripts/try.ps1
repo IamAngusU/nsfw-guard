@@ -38,11 +38,8 @@ $userHome = [IO.Path]::GetFullPath([Environment]::GetFolderPath('UserProfile'))
 if ($CacheBase) {
   $bases = @($CacheBase)
 } else {
+  # Documents may be redirected to OneDrive or another synced location.
   $bases = @((Join-Path $userHome '.cache'))
-  $documents = [Environment]::GetFolderPath('MyDocuments')
-  if ($documents -and (Test-Path -LiteralPath $documents -PathType Container)) {
-    $bases += $documents
-  }
 }
 
 $root = $null
