@@ -37,24 +37,52 @@ gebaut.
 NSFW Guard ist Alpha-Software. Es ist fuer Triage und Reviews gedacht, nicht fuer
 vollautomatische rechtliche, berufliche oder behoerdliche Entscheidungen.
 
-## Ohne Klonen ausprobieren (Windows PowerShell)
+<a id="ohne-klonen-ausprobieren-windows-powershell"></a>
+
+## Mit eigenem Bild ausprobieren (Windows PowerShell)
 
 Mit installiertem Python 3.10+ diese eine Zeile in PowerShell oder Windows Terminal
-kopieren. Sie laedt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/064df01ee36bc46594559991f4b4b908c2048817/scripts/try.ps1)
-und fragt danach nach einem Bild- oder Ordnerpfad. Klonen und Adminrechte sind
-nicht noetig.
+kopieren. Sie fuehrt das [Startskript von einem festen Commit](https://github.com/IamAngusU/nsfw-guard/blob/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1)
+aus und fragt nach einem Bild- oder Ordnerpfad. Klonen, Adminrechte und ein
+Bild-Upload durch NSFW Guard sind nicht noetig. Der bequeme Einzeiler fuehrt
+entfernten PowerShell-Code aus; wer das zuvor pruefen moechte, kann den Quellcode
+ansehen und den Hash wie unten vergleichen.
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/064df01ee36bc46594559991f4b4b908c2048817/scripts/try.ps1')))
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1')))
 ```
 
 Fuer sofortiges Entfernen der privaten Test-Installation samt Modell und Berichten
-`-Cleanup` an die Zeile anhaengen. Falls weder Benutzer-Cache noch Dokumente
-beschreibbar sind, `-CacheBase 'D:\ein-beschreibbarer-ordner'` anhaengen. Das Skript
+`-Cleanup` an die Zeile anhaengen. Falls der Benutzer-Cache nicht beschreibbar ist,
+`-CacheBase 'D:\ein-beschreibbarer-ordner'` anhaengen. Das Skript
 prueft Leserechte und verlangt keine Adminrechte. Ein Ordner-Test scannt maximal
-32 Bilder; der vollstaendige Ordner-Scan steht weiter unten. Paket, Abhaengigkeiten
-und Modell werden beim ersten Mal automatisch geladen; Bilder werden nicht
-hochgeladen.
+32 Bilder; der vollstaendige Ordner-Scan steht weiter unten. Das veroeffentlichte
+Paket `0.1.0a4`, Abhaengigkeiten und Modell werden beim ersten Mal automatisch
+geladen; der aktuelle `main`-Quellstand ist `0.1.0a5.dev0`. Berichte enthalten
+Pfade und Scores. Wer `-CacheBase` setzt, sollte einen privaten, nicht
+synchronisierten Ort waehlen.
+
+<details>
+<summary>Vor dem Start SHA-256 pruefen</summary>
+
+Das ist dasselbe fest gepinnte Skript, keine Sandbox. Erst die ersten drei Zeilen
+ausfuehren, `$trialScript` bei Bedarf ansehen und dann die letzte Zeile starten.
+Fuer einen fluechtigen Test `-Cleanup` an die letzte Zeile anhaengen.
+
+```powershell
+$trialScript = irm 'https://raw.githubusercontent.com/IamAngusU/nsfw-guard/ab9fbef7af64d3a08f7309f34ccbb0ceff7178a8/scripts/try.ps1'
+$sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($trialScript))).Replace('-', '')
+if ($sha256 -ne '3C99AB5C9DE636D89F6A2A351ABFA3864229702722D05B58F8FC3B72CFDED9CA') { throw 'Bootstrap SHA-256 mismatch.' }
+& ([scriptblock]::Create($trialScript))
+```
+
+</details>
+
+Aeltere Startskripte konnten den Test-Cache in Windows-Dokumente legen; dieser
+Ordner kann mit OneDrive synchronisiert sein. Zum Entfernen **dieses vorhandenen,
+markierten Caches ohne erneuten Scan** an den aktuellen Einzeiler
+`-CleanupOnly -CacheBase ([Environment]::GetFolderPath('MyDocuments'))` anhaengen.
+Eine bereits erfolgte Synchronisierung macht das nicht rueckgaengig.
 
 ## In zwei Befehlen starten
 
